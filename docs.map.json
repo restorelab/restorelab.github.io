@@ -1,0 +1,80 @@
+[
+  {
+    "source": "docs/recovery-plans.md",
+    "dest": "guides/recovery-plans.md",
+    "route": "/guides/recovery-plans/",
+    "title": "Recovery plans",
+    "description": "What to restore, where, and what must be true afterwards.",
+    "order": 1
+  },
+  {
+    "source": "docs/configuration.md",
+    "dest": "guides/configuration.md",
+    "route": "/guides/configuration/",
+    "title": "Configuration",
+    "description": "Config file, providers, network profiles and limits.",
+    "order": 2
+  },
+  {
+    "source": "docs/network-isolation.md",
+    "dest": "guides/network-isolation.md",
+    "route": "/guides/network-isolation/",
+    "title": "Network isolation",
+    "description": "Building the isolated bridge, and why a drill refuses to run without it.",
+    "order": 3
+  },
+  {
+    "source": "docs/proxmox-permissions.md",
+    "dest": "guides/proxmox-permissions.md",
+    "route": "/guides/proxmox-permissions/",
+    "title": "Proxmox permissions",
+    "description": "The dedicated service account and the minimal permission set.",
+    "order": 4
+  },
+  {
+    "source": "docs/deployment.md",
+    "dest": "guides/deployment.md",
+    "route": "/guides/deployment/",
+    "title": "Deployment",
+    "description": "Where to run RestoreLab, and how checks reach the guest.",
+    "order": 5
+  },
+  {
+    "source": "docs/persistence.md",
+    "dest": "guides/drill-history.md",
+    "route": "/guides/drill-history/",
+    "title": "Drill history",
+    "description": "SQLite by default, PostgreSQL optional, and what is kept.",
+    "order": 6
+  },
+  {
+    "source": "docs/architecture.md",
+    "dest": "reference/architecture.md",
+    "route": "/reference/architecture/",
+    "title": "Architecture",
+    "description": "Packages, the provider abstraction, and the roadmap.",
+    "order": 1
+  },
+  {
+    "source": "docs/security.md",
+    "dest": "reference/security.md",
+    "route": "/reference/security/",
+    "title": "Security model",
+    "description": "Threat model, secret handling, and audit.",
+    "order": 2
+  },
+  {
+    "source": "docs/api.md",
+    "dest": null,
+    "route": "/reference/http-api/",
+    "title": "HTTP API",
+    "description": "Auth and scopes, the event stream, and how a write actually happens."
+  },
+  {
+    "source": "SECURITY.md",
+    "dest": null,
+    "route": "https://github.com/restorelab/restorelab/blob/master/SECURITY.md",
+    "title": "Security policy",
+    "description": "How to report a vulnerability privately."
+  }
+]
