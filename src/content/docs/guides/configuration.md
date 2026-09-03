@@ -2,7 +2,7 @@
 title: Configuration
 description: Config file, providers, network profiles and limits.
 sidebar:
-  order: 2
+  order: 3
 ---
 
 <!-- Generated from docs/configuration.md in github.com/restorelab/restorelab. Do not edit here. -->
@@ -68,6 +68,11 @@ defaults:
   network: isolated
   node: pve02
   storage: local-lvm
+
+scheduler:
+  enabled: true
+  grace_period: 2h
+  max_queue_depth: 5
 ```
 
 ## `providers`
@@ -142,6 +147,32 @@ default. See [network-isolation.md](/guides/network-isolation/).
 Values used when a plan or a CLI flag does not specify them: `provider`,
 `backup_provider`, `network`, `node`, `storage`. `defaults.network` must name an
 isolated profile.
+
+## `scheduler`
+
+Governs the drills stored plans queue for themselves. Every field has a
+working default, so the whole block is absent from most configurations — and
+**its absence means scheduling is on**, so an installation that upgrades into
+a version with a scheduler starts honouring the schedules its plans already
+carry.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | `false` stops all scheduling. Plans keep their `schedule`; nothing acts on it. |
+| `grace_period` | `2h` | How late a slot may be and still run. Past it the slot is skipped and recorded. |
+| `max_queue_depth` | `5` | The scheduler stops queueing beyond this depth and tries again at the next tick. |
+
+`grace_period` is the field worth thinking about. A drill restores tens of
+gigabytes onto production storage; one that starts hours outside its window,
+because a server happened to reboot, is an incident rather than a test. Raising
+this to a day means a machine that was off overnight gets drilled at lunchtime.
+
+Only a process that runs the worker schedules anything — a process that queued
+scheduled drills without draining them would fill a queue nobody empties.
+`restorelab serve --no-scheduler` turns it off for one run of the server,
+which is the switch for a night of cluster maintenance.
+
+See [scheduling.md](/guides/scheduling/) for what the scheduler does with all this.
 
 ## `database` — drill history
 

@@ -2,7 +2,7 @@
 title: Proxmox permissions
 description: The dedicated service account and the minimal permission set.
 sidebar:
-  order: 4
+  order: 5
 ---
 
 <!-- Generated from docs/proxmox-permissions.md in github.com/restorelab/restorelab. Do not edit here. -->

@@ -2,7 +2,7 @@
 title: Deployment
 description: Where to run RestoreLab, and how checks reach the guest.
 sidebar:
-  order: 5
+  order: 6
 ---
 
 <!-- Generated from docs/deployment.md in github.com/restorelab/restorelab. Do not edit here. -->

@@ -8,12 +8,20 @@
     "order": 1
   },
   {
+    "source": "docs/scheduling.md",
+    "dest": "guides/scheduling.md",
+    "route": "/guides/scheduling/",
+    "title": "Scheduling",
+    "description": "Cron schedules on a plan, why a late slot is skipped, and what the scheduler does not do.",
+    "order": 2
+  },
+  {
     "source": "docs/configuration.md",
     "dest": "guides/configuration.md",
     "route": "/guides/configuration/",
     "title": "Configuration",
     "description": "Config file, providers, network profiles and limits.",
-    "order": 2
+    "order": 3
   },
   {
     "source": "docs/network-isolation.md",
@@ -21,7 +29,7 @@
     "route": "/guides/network-isolation/",
     "title": "Network isolation",
     "description": "Building the isolated bridge, and why a drill refuses to run without it.",
-    "order": 3
+    "order": 4
   },
   {
     "source": "docs/proxmox-permissions.md",
@@ -29,7 +37,7 @@
     "route": "/guides/proxmox-permissions/",
     "title": "Proxmox permissions",
     "description": "The dedicated service account and the minimal permission set.",
-    "order": 4
+    "order": 5
   },
   {
     "source": "docs/deployment.md",
@@ -37,7 +45,7 @@
     "route": "/guides/deployment/",
     "title": "Deployment",
     "description": "Where to run RestoreLab, and how checks reach the guest.",
-    "order": 5
+    "order": 6
   },
   {
     "source": "docs/persistence.md",
@@ -45,7 +53,7 @@
     "route": "/guides/drill-history/",
     "title": "Drill history",
     "description": "SQLite by default, PostgreSQL optional, and what is kept.",
-    "order": 6
+    "order": 7
   },
   {
     "source": "docs/architecture.md",

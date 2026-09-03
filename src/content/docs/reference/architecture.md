@@ -113,8 +113,18 @@ second implementation would have become a second answer:
 - **`worker`** holds the only mutating provider calls reachable from an HTTP
   request, and reaches them through `recovery.Engine`.
 
-Planned, not yet present: plans stored in the database, `scheduler`,
-`notifications`, `audit`, `probe`.
+- **`scheduler`** queues the drills a stored plan's cron asks for, and does
+  nothing else. It holds no provider and no engine, and cannot be constructed
+  with either: automating drills had to add no destructive surface, and the
+  compiler is what guarantees it. Idempotence lives in the database — a slot is
+  a row keyed by `(plan_id, slot_at)`, claimed in the same transaction as the
+  run it queues, so a scheduler that dies mid-write cannot drill twice.
+- **`trigger`** builds and queues a run: the conflict check, the plan snapshot,
+  the row. The API and the scheduler both go through it, because a drill
+  launched by a cron and one launched from the dashboard must obey the same
+  guards.
+
+Planned, not yet present: `notifications`, `audit`, `probe`.
 
 ## The recovery workflow
 
@@ -134,14 +144,14 @@ RESTORING                    then harden it (network rewrite, limits, metadata)
 STARTING
   ↓ wait_for_guest         poll status until powered on and addressable
 WAITING_FOR_GUEST
-  ↓ run_checks             ping / tcp / http / dns, with retries
+  ↓ run_checks             cmd (in-guest) / tcp / http / dns / ping, with retries
 RUNNING_CHECKS
   ↓ generate_report
 GENERATING_REPORT
   ↓ cleanup                stop + delete, on a detached context
 CLEANING_UP
   ↓
-SUCCESS | DEGRADED | FAILED | CLEANUP_FAILED
+SUCCESS | DEGRADED | FAILED | INCONCLUSIVE | CLEANUP_FAILED
 ```
 
 **RTO** is measured from the start of the run to the end of the checks. Cleanup
@@ -151,6 +161,24 @@ of the recovery a business would experience.
 **Grading**: every critical check passed and the RTO target met → `SUCCESS`;
 recovered but a non-critical check failed or the RTO target was exceeded →
 `DEGRADED`; a step failed or a critical check failed → `FAILED`.
+
+A fourth ending exists for the case where the drill reached no verdict at all:
+the workload restored and booted, but a critical check **could not be
+evaluated** → `INCONCLUSIVE`, carrying no result. It is a distinct ending
+because RestoreLab isolates the recovery network on purpose, so a `tcp:`,
+`http:`, `dns:` or `ping` check dialled from wherever RestoreLab runs comes
+back silent unless the operator arranged a route. That silence is a fact about
+the operator's topology, not about their backup. Grading it `FAILED` would
+charge a workload's confidence score for where it was tested from, and a
+report nobody can trust is worth less than no report — the same reasoning that
+already makes a cancelled run carry no verdict.
+
+Because that ending has to be reachable, the check layer distinguishes "the
+target answered, badly" from "nothing answered": `internal/checks/reachability.go`
+classifies by errno rather than by message text, per platform. Windows forced
+that — there, `net.Error.Timeout()` reports false for `WSAETIMEDOUT`, the
+portable `syscall.ECONNREFUSED` is a placeholder that never matches a real
+dial, and the message strings are localised.
 
 ## Retries
 

@@ -2,7 +2,7 @@
 title: Network isolation
 description: Building the isolated bridge, and why a drill refuses to run without it.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 <!-- Generated from docs/network-isolation.md in github.com/restorelab/restorelab. Do not edit here. -->
