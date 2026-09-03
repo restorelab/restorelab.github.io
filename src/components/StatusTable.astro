@@ -1,0 +1,148 @@
+---
+/**
+ * The capability table from the README, unabridged. The two honest caveats —
+ * Proxmox Backup Server and the network checks have never run against real
+ * hardware — are stated above the table and repeated on the rows themselves.
+ * They are not a footnote.
+ */
+type Row = { area: string; state: 'done' | 'next' | 'planned'; caveat?: string };
+
+const rows: Row[] = [
+  {
+    area: 'Proxmox VE provider (restore / harden / start / status / delete)',
+    state: 'done',
+  },
+  {
+    area: 'Proxmox Backup Server discovery',
+    state: 'done',
+    caveat: 'Never run against a real PBS',
+  },
+  {
+    area: 'Recovery engine (isolation, capacity, cleanup, RTO, grading)',
+    state: 'done',
+  },
+  {
+    area: 'Checks: ping, tcp, http/https, dns',
+    state: 'done',
+    caveat: 'Never run against a real isolated bridge',
+  },
+  {
+    area: 'In-guest checks through the QEMU guest agent (no network path needed)',
+    state: 'done',
+  },
+  {
+    area: 'CLI (<code>init</code>, <code>provider</code>, <code>workloads</code>, <code>backups</code>, <code>recovery</code>, <code>cleanup</code>)',
+    state: 'done',
+  },
+  { area: 'Reports: terminal, JSON, self-contained HTML', state: 'done' },
+  {
+    area: 'One-command setup (<code>connect</code>) creating a least-privilege service account',
+    state: 'done',
+  },
+  {
+    area: '<code>doctor</code> diagnostics and <code>network create</code> for the isolated bridge',
+    state: 'done',
+  },
+  {
+    area: 'Drill history, SQLite by default, PostgreSQL optional (<code>runs</code>, <code>db</code>)',
+    state: 'done',
+  },
+  {
+    area: 'HTTP API + token auth and scopes (<code>serve</code>, <code>token</code>)',
+    state: 'done',
+  },
+  {
+    area: 'Recovery confidence score, computed from the stored history',
+    state: 'done',
+  },
+  {
+    area: 'Triggering and cancelling drills over HTTP, worker, queue, live event stream',
+    state: 'done',
+  },
+  {
+    area: 'Recovery plans stored in the database, edited over HTTP or with <code>plan</code>',
+    state: 'done',
+  },
+  {
+    area: 'Browser session cookie, so a dashboard can authenticate and read the event stream',
+    state: 'done',
+  },
+  {
+    area: 'Web dashboard, served from the binary: overview, history, live drill, workloads, diagnostics',
+    state: 'done',
+  },
+  {
+    area: 'Launching and cancelling drills from the browser, and destroying what they leave behind',
+    state: 'done',
+  },
+  {
+    area: 'Writing the plan catalogue in the browser, validated by the binary as you type',
+    state: 'done',
+  },
+  {
+    area: 'First-run setup in the browser, replacing the install commands',
+    state: 'done',
+  },
+  {
+    area: 'Scheduled drills, SSH / PostgreSQL / MySQL checks, notifications',
+    state: 'next',
+  },
+  { area: 'Remote probes, RBAC, OIDC', state: 'planned' },
+];
+---
+
+<section class="section" id="status">
+  <div class="wrap section__grid">
+    <div class="section__aside">
+      <span class="section__index">06</span>
+      <span class="section__label">Status</span>
+    </div>
+
+    <div>
+      <h2 class="section__title">Alpha, and specific about it</h2>
+      <p class="prose" style="margin-bottom: 1.75rem;">
+        The Proxmox recovery drill pipeline works end to end and has been driven
+        against a live Proxmox VE 9 cluster. Drill history is kept
+        automatically, recovery plans live in the database, and the HTTP API
+        both serves that history and triggers new drills through a worker that
+        drains a queue.
+      </p>
+
+      <div class="caveat">
+        <p>
+          Two things below are implemented and unit-tested but have <strong
+            >never run against real infrastructure</strong
+          >, because the
+          cluster this was built on has neither: <strong
+            >Proxmox Backup Server</strong
+          >, and the <strong>network checks</strong>, which need a route to the
+          isolated bridge. Everything else has been driven against a live
+          cluster. See <a href="/guides/network-isolation/">network isolation</a
+          >.
+        </p>
+      </div>
+
+      <div class="matrix">
+        {
+          rows.map((row) => (
+            <div class="matrix__row">
+              <div class="matrix__area">
+                <span set:html={row.area} />
+                {row.caveat && (
+                  <span class="matrix__caveat">{row.caveat}</span>
+                )}
+              </div>
+              <span class={`pill pill--${row.state}`}>{row.state}</span>
+            </div>
+          ))
+        }
+      </div>
+
+      <p class="legend">
+        <span><span class="pill pill--done">done</span> shipped</span>
+        <span><span class="pill pill--next">next</span> being built</span>
+        <span><span class="pill pill--planned">planned</span> not started</span>
+      </p>
+    </div>
+  </div>
+</section>

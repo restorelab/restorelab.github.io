@@ -1,0 +1,125 @@
+---
+/**
+ * Dashboard screenshots, captured by `scripts/screenshots.mjs` against a demo
+ * database. Light and dark variants are served by `prefers-color-scheme`
+ * alone; there is no JavaScript on this page beyond the copy buttons.
+ *
+ * Sources are 2880x1800 (a 1440x900 viewport at deviceScaleFactor 2), and the
+ * intrinsic size is declared so the layout never shifts as they load.
+ */
+const thumbs = [
+  {
+    name: 'history',
+    caption: 'History',
+    alt: 'RestoreLab drill history: past recovery drills with their workload, outcome and measured recovery time.',
+  },
+  {
+    name: 'workloads',
+    caption: 'Workloads',
+    alt: 'The workloads screen: every virtual machine discovered on the cluster, its backups and its recovery confidence score.',
+  },
+  {
+    name: 'diagnostics',
+    caption: 'Diagnostics',
+    alt: 'The diagnostics screen, reporting whether the cluster, the storage and the isolated bridge are configured correctly.',
+  },
+];
+---
+
+<section class="section" id="dashboard">
+  <div class="wrap section__grid">
+    <div class="section__aside">
+      <span class="section__index">03</span>
+      <span class="section__label">The dashboard</span>
+    </div>
+
+    <div>
+      <h2 class="section__title">The dashboard runs the tool</h2>
+      <p class="prose">
+        It shows what is running, what has run, what is protected and whether
+        the cluster is configured correctly, with a drill&rsquo;s phases filling
+        in live while it happens — and it starts drills, cancels them, destroys
+        what they leave behind, and writes the plan catalogue with the binary
+        itself validating each document as you type.
+      </p>
+      <p class="prose">
+        Proving a backup can recover a service is worth doing by an operations
+        team, not only by whoever is comfortable in a terminal. The command line
+        keeps every capability; it is what automation drives.
+      </p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <figure class="shot shot--hero">
+      <picture>
+        <source
+          srcset="/img/dashboard/overview-dark.png"
+          media="(prefers-color-scheme: dark)"
+        />
+        <img
+          src="/img/dashboard/overview-light.png"
+          alt="The RestoreLab overview screen: the drill currently running, the recent drills with their outcome and measured recovery time, and the state of the cluster."
+          width="2880"
+          height="1800"
+        />
+      </picture>
+      <figcaption class="shot__caption">
+        <span class="shot__name">Overview</span>
+        <span class="shot__note">
+          What is running, what has run, and how long recovery took.
+        </span>
+      </figcaption>
+    </figure>
+
+    <figure class="shot shot--hero">
+      <picture>
+        <source
+          srcset="/img/dashboard/drill-dark.png"
+          media="(prefers-color-scheme: dark)"
+        />
+        <img
+          src="/img/dashboard/drill-light.png"
+          alt="A finished drill: its phases with their durations, the recovery time against the plan's target, and the checks, one of which failed."
+          width="2880"
+          height="1800"
+          loading="lazy"
+          decoding="async"
+        />
+      </picture>
+      <figcaption class="shot__caption">
+        <span class="shot__name">A drill, in detail</span>
+        <span class="shot__note">
+          Phase by phase, with the recovery time set against the target and the
+          check that did not come back.
+        </span>
+      </figcaption>
+    </figure>
+
+    <div class="thumbs">
+      {
+        thumbs.map((shot) => (
+          <figure class="shot">
+            <picture>
+              <source
+                srcset={`/img/dashboard/${shot.name}-dark.png`}
+                media="(prefers-color-scheme: dark)"
+              />
+              <img
+                src={`/img/dashboard/${shot.name}-light.png`}
+                alt={shot.alt}
+                width="2880"
+                height="1800"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <figcaption class="shot__caption">
+              <span class="shot__name">{shot.caption}</span>
+            </figcaption>
+          </figure>
+        ))
+      }
+    </div>
+  </div>
+</section>

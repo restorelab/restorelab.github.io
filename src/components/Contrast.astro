@@ -1,0 +1,79 @@
+---
+/**
+ * The argument: what backup verification asserts against what a drill proves.
+ * Both columns come from the README, verbatim.
+ */
+const verification = ['Backup exists', 'Checksum valid'];
+
+const drill = [
+  'VM restored',
+  'OS booted',
+  'PostgreSQL started',
+  'API returned HTTP 200',
+  'Recovery completed in 2m06',
+];
+---
+
+<section class="section" id="why">
+  <div class="wrap section__grid">
+    <div class="section__aside">
+      <span class="section__index">01</span>
+      <span class="section__label">The argument</span>
+    </div>
+
+    <div>
+      <h2 class="section__title">What backup verification leaves out</h2>
+      <p class="prose">
+        A verification job answers a question about a file. A recovery drill
+        answers the question you actually have.
+      </p>
+
+      <div class="contrast" style="margin-top: 1.75rem;">
+        <div class="card">
+          <h3 class="card__title">Backup verification says</h3>
+          <ul class="checks">
+            {
+              verification.map((item) => (
+                <li>
+                  <span class="mark" aria-hidden="true">
+                    ✓
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))
+            }
+          </ul>
+          <div class="card__void" aria-hidden="true"></div>
+        </div>
+
+        <div class="card card--claim">
+          <h3 class="card__title">RestoreLab says</h3>
+          <ul class="checks checks--proof">
+            {
+              drill.map((item) => (
+                <li>
+                  <span class="mark" aria-hidden="true">
+                    ✓
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+
+      <p class="pullquote">
+        A backup that restores is not the same thing as a service that comes
+        back.
+      </p>
+
+      <p class="prose" style="margin-top: 1.5rem;">
+        The VM boots but PostgreSQL does not start. The database starts but the
+        schema is inconsistent. The API answers but Redis was never restored.
+        Recovery takes 45 minutes against a 15-minute RTO. RestoreLab tests the
+        whole chain, on a schedule, and proves it.
+      </p>
+    </div>
+  </div>
+</section>

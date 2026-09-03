@@ -1,0 +1,98 @@
+---
+import { Code } from 'astro:components';
+
+/**
+ * A recovery plan, verbatim from the README. Highlighted at build time by
+ * Shiki through `astro:components` — no client-side highlighter.
+ */
+const shiki = {
+  themes: { light: 'github-light', dark: 'github-dark' },
+  defaultColor: false as const,
+};
+
+const run = 'restorelab recovery run examples/plans/postgres-prod.yaml';
+
+const plan = `name: postgres-prod
+
+workload:
+  provider: proxmox-main
+  id: "101"
+
+backup:
+  strategy: latest
+  max_age: 26h
+
+restore:
+  node: pve02
+  network: isolated
+  cpu_limit: 2
+  memory_limit: 4096
+
+startup:
+  timeout: 180s
+
+checks:
+  # Runs inside the guest through the QEMU guest agent: no route into the
+  # isolated recovery network required.
+  - type: command
+    run: systemctl is-active postgresql
+    expect: active
+
+  - type: tcp
+    port: 22
+
+  - type: http
+    url: http://{{ .ip }}:8080/health
+    expected_status: 200
+
+cleanup:
+  always: true
+
+rto_target: 5m
+`;
+---
+
+<section class="section" id="plans">
+  <div class="wrap section__grid">
+    <div class="section__aside">
+      <span class="section__index">05</span>
+      <span class="section__label">A recovery plan</span>
+    </div>
+
+    <div>
+      <h2 class="section__title">
+        What to restore, where, and what must be true afterwards
+      </h2>
+      <p class="prose">
+        A plan is one YAML document, stored in the database and validated by the
+        binary. It names the workload, which backup to take, where the copy
+        lands, what must answer once it boots, and the recovery time it is
+        measured against.
+      </p>
+
+      <div class="plan">
+        <div class="codeblock">
+          <Code code={plan} lang="yaml" {...shiki} />
+        </div>
+
+        <div class="codeblock">
+          <Code code={run} lang="bash" wrap {...shiki} />
+          <button
+            class="copy"
+            type="button"
+            data-copy={run}
+            aria-label={`Copy: ${run}`}
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <p class="linkrow">
+        <a href="/guides/recovery-plans/">
+          Plan reference and every check type →
+        </a>
+      </p>
+    </div>
+  </div>
+</section>

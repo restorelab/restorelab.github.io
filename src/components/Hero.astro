@@ -1,0 +1,106 @@
+---
+/**
+ * Hero. The argument in one line, two actions, and the terminal transcript of
+ * a real drill as the proof object — the output block from the README, kept
+ * verbatim, including its RTO.
+ */
+const repo = 'https://github.com/restorelab/restorelab';
+---
+
+<header class="hero">
+  <div class="wrap">
+    <nav class="topbar" aria-label="Primary">
+      <a class="brand" href="/">
+        <svg
+          class="brand__mark"
+          viewBox="0 0 128 128"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M81 36 64 0 47 36l-1 2-9-10a6 6 0 0 0-9 9l10 10h-2L0 64l36 17h2L28 91a6 6 0 1 0 9 9l9-10 1 2 17 36 17-36v-2l9 10a6 6 0 1 0 9-9l-9-9 2-1 36-17-36-17-2-1 9-9a6 6 0 1 0-9-9l-9 10v-2Zm-17 2-2 5c-4 8-11 15-19 19l-5 2 5 2c8 4 15 11 19 19l2 5 2-5c4-8 11-15 19-19l5-2-5-2c-8-4-15-11-19-19l-2-5Z"
+            clip-rule="evenodd"></path>
+        </svg>
+        RestoreLab
+      </a>
+      <div class="topbar__nav">
+        <a href="/start/introduction/">Docs</a>
+        <a class="is-secondary" href="/start/quick-start/">Quick start</a>
+        <a class="is-secondary" href="/api/">API</a>
+        <a href={repo}>GitHub</a>
+      </div>
+    </nav>
+  </div>
+
+  <div class="wrap">
+    <div class="hero__grid">
+      <div>
+        <span class="tag">Alpha</span>
+
+        <h1 class="hero__title">
+          <span class="is-quiet">Your backups are green.</span>
+          But can you actually recover?
+        </h1>
+
+        <p class="lede">
+          RestoreLab restores your backups into isolated environments, boots the
+          workloads, validates the services, measures your real recovery time,
+          and cleans everything up.
+        </p>
+
+        <p class="hero__kicker">
+          One binary, one command. With nothing configured, <code>serve</code> starts
+          anyway, prints a one-time setup address, and the browser does the
+          rest.
+        </p>
+
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="/start/introduction/">
+            Read the docs
+          </a>
+          <a class="btn btn--ghost" href={repo}>
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              ></path>
+            </svg>
+            View on GitHub
+          </a>
+        </div>
+
+        <p class="hero__meta">
+          <span>AGPL-3.0</span>
+          <span>Go 1.27+</span>
+          <span>Proxmox VE</span>
+          <span>Self-hosted</span>
+          <span>Single binary</span>
+        </p>
+      </div>
+
+      <div>
+        <div class="term">
+          <div class="term__bar">
+            <span class="term__prompt">$</span>
+            <span>restorelab recovery test 101</span>
+          </div>
+          <pre class="term__body"><span class="term__ok">[✓]</span> Connected to Proxmox
+<span class="term__ok">[✓]</span> VM 101 found
+<span class="term__ok">[✓]</span> Backup found
+<span class="term__ok">[✓]</span> Restore started
+<span class="term__ok">[✓]</span> Temporary VM created
+<span class="term__ok">[✓]</span> VM booted
+<span class="term__ok">[✓]</span> TCP/22 reachable
+<span class="term__ok">[✓]</span> VM removed
+
+<span class="term__result">Recovery successful</span>
+RTO: <span class="term__rto">2m17s</span></pre>
+        </div>
+        <p class="term__note">
+          One drill: a temporary copy of VM 101 restored onto the isolated
+          bridge, booted, checked, measured, and removed.
+        </p>
+      </div>
+    </div>
+  </div>
+</header>
