@@ -172,6 +172,52 @@ for (const file of frenchPages) {
   else translated += 1;
 }
 
+// ═══════════════════════════════════════════════════ les ancres, toutes pages
+//
+// Un lien vers `#un-titre` casse en silence dès que le titre visé est reformulé,
+// et les titres des guides viennent du dépôt produit : ils bougent sans que
+// personne ici ne s'en aperçoive. Le contrôle vaut pour tout le site, pas
+// seulement pour les pages françaises.
+
+const headingIds = new Map();
+
+function idsOf(file) {
+  if (!headingIds.has(file)) {
+    const html = readFileSync(join(DIST, file), 'utf8');
+    headingIds.set(
+      file,
+      new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1])),
+    );
+  }
+  return headingIds.get(file);
+}
+
+const allPages = built.filter((f) => f.endsWith('index.html'));
+let anchors = 0;
+
+for (const file of allPages) {
+  const html = readFileSync(join(DIST, file), 'utf8');
+  const page = '/' + posix.dirname(file).replace(/^\.$/, '') + '/';
+
+  for (const [, href] of html.matchAll(/href="([^"]*#[^"]+)"/g)) {
+    // Les ancres de l'interface de Starlight (sommaire, lien de saut) sont
+    // générées avec la page : elles ne peuvent pas pointer dans le vide.
+    if (href.startsWith('#starlight') || href === '#') continue;
+
+    const [rawPath, rawHash] = href.split('#');
+    if (rawPath.startsWith('http')) continue;
+
+    const target = rawPath === '' ? file : rawPath.replace(/^\//, '') + 'index.html';
+    if (!built.includes(target)) continue; // le lien mort est déjà signalé plus haut
+
+    anchors += 1;
+    const id = decodeURIComponent(rawHash);
+    if (!idsOf(target).has(id)) {
+      fail(page, `ancre morte : ${href} — aucun élément « ${id} » sur la page visée`);
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════════════ la référence d'API
 
 const apiPages = built.filter((f) => f.startsWith('api/') && f.endsWith('index.html'));
@@ -188,6 +234,7 @@ console.log(
 console.log(
   `check-i18n: liens — ${translated} page(s) traduite(s), ${byFallback} servie(s) par repli`,
 );
+console.log(`check-i18n: ${anchors} lien(s) avec ancre vérifié(s) sur tout le site`);
 console.log(`check-i18n: ${apiPages.length} page(s) de référence d’API vérifiée(s)`);
 
 if (failures.length > 0) {
