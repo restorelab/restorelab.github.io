@@ -111,6 +111,7 @@ Tout le reste a été piloté contre un cluster Proxmox VE 9 en service.
 | Historique des exercices, SQLite par défaut, PostgreSQL en option (`runs`, `db`) | livré |
 | API HTTP + authentification par jeton et portées (`serve`, `token`) | livré |
 | Score de confiance de restauration, calculé depuis l’historique stocké | livré |
+| Niveau de preuve : ce que chaque exercice a établi, et le plafond que ça met sur le score | livré |
 | Déclenchement et annulation d’exercices via HTTP, worker, file d’attente, flux d’événements en direct | livré |
 | Plans de restauration stockés en base, édités via HTTP ou avec `plan` | livré |
 | Cookie de session navigateur, pour qu’un tableau de bord s’authentifie et lise le flux d’événements | livré |
@@ -128,5 +129,5 @@ d’architecture](/fr/reference/architecture/).
 
 ## Ensuite
 
-Compilez le binaire et connectez un cluster dans le [démarrage
+Lancez-le et connectez un cluster dans le [démarrage
 rapide](/fr/start/quick-start/).

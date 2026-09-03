@@ -2,9 +2,10 @@
 import { Code } from 'astro:components';
 import type { Lang, LandingCopy } from '../i18n/landing';
 import { localize } from '../i18n/landing';
+import { RESTORELAB_VERSION } from '../version.ts';
 
 /**
- * L'installation, tirée du README : compiler, lancer, finir dans le navigateur.
+ * L'installation, tirée du README : lancer, puis finir dans le navigateur.
  * Shiki colore au build à travers `astro:components`, donc rien n'est hydraté ;
  * les boutons de copie sont une douzaine de lignes de JavaScript inline, sans
  * aucune dépendance.
@@ -26,10 +27,25 @@ const shiki = {
   defaultColor: false as const,
 };
 
-/** Les commandes des deux étapes ; le texte qui les accompagne est traduit. */
+/**
+ * Les commandes des deux étapes ; le texte qui les accompagne est traduit.
+ *
+ * Le conteneur d'abord, l'archive ensuite : RestoreLab s'installe sur de
+ * l'infrastructure, donc ce qu'on propose en premier doit être une image ou un
+ * fichier, pas une chaîne de compilation. Compiler depuis les sources demande
+ * maintenant Go *et* Node, le tableau de bord étant embarqué — c'est le
+ * troisième chemin, et il est dans une note.
+ *
+ * Le numéro de version vient de `src/version.ts` : l'URL `releases/latest` de
+ * GitHub exige le nom de fichier exact, donc la version se retrouve dans une
+ * commande, et un numéro recopié vieillit.
+ */
 const commands = [
-  'go build -o bin/restorelab ./cmd/restorelab',
-  'bin/restorelab serve',
+  `docker run -p 8080:8080 -v restorelab:/home/restorelab/.restorelab \\
+  ghcr.io/restorelab/restorelab serve --listen 0.0.0.0:8080`,
+  `curl -fsSL -O https://github.com/restorelab/restorelab/releases/latest/download/restorelab_${RESTORELAB_VERSION}_linux_amd64.tar.gz
+tar xzf restorelab_${RESTORELAB_VERSION}_linux_amd64.tar.gz
+./restorelab serve`,
 ];
 
 const steps = commands.map((code, i) => ({

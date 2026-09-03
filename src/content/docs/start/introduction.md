@@ -105,6 +105,7 @@ Everything else has been driven against a live Proxmox VE 9 cluster.
 | Drill history, SQLite by default, PostgreSQL optional (`runs`, `db`) | done |
 | HTTP API + token auth and scopes (`serve`, `token`) | done |
 | Recovery confidence score, computed from the stored history | done |
+| Proof level: what each drill established, and the ceiling it puts on the score | done |
 | Triggering and cancelling drills over HTTP, worker, queue, live event stream | done |
 | Recovery plans stored in the database, edited over HTTP or with `plan` | done |
 | Browser session cookie, so a dashboard can authenticate and read the event stream | done |
@@ -121,4 +122,4 @@ built in, are in the [architecture reference](/reference/architecture/).
 
 ## Next
 
-Build the binary and connect a cluster in the [quick start](/start/quick-start/).
+Run it and connect a cluster in the [quick start](/start/quick-start/).

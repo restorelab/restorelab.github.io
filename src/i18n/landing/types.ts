@@ -36,6 +36,7 @@ export type StatusRowId =
   | 'drillHistory'
   | 'httpApi'
   | 'confidenceScore'
+  | 'proofLevel'
   | 'triggerOverHttp'
   | 'storedPlans'
   | 'sessionCookie'

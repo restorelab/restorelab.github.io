@@ -1,3 +1,4 @@
+import { RESTORELAB_VERSION } from '../../version.ts';
 import type { LandingCopy } from './types';
 
 /**
@@ -33,7 +34,13 @@ export const en: LandingCopy = {
       'One binary, one command. With nothing configured, <code>serve</code> starts anyway, prints a one-time setup address, and the browser does the rest.',
     ctaDocs: 'Read the docs',
     ctaGithub: 'View on GitHub',
-    meta: ['AGPL-3.0', 'Go 1.27+', 'Proxmox VE', 'Self-hosted', 'Single binary'],
+    meta: [
+      'AGPL-3.0',
+      RESTORELAB_VERSION,
+      'Proxmox VE',
+      'Self-hosted',
+      'Single binary',
+    ],
     termNote:
       'One drill: a temporary copy of VM 101 restored onto the isolated bridge, booted, checked, measured, and removed.',
   },
@@ -122,12 +129,12 @@ export const en: LandingCopy = {
 
   quickStart: {
     label: 'Quick start',
-    title: 'Two commands, then a browser',
+    title: 'One command, then a browser',
     intro:
       'One binary, no agent to install on the guests, no daemon to keep alive beside it. That is the whole of it.',
     steps: [
-      'Build the binary. Go 1.27+ is required until the first binary release.',
-      'Start it. Nothing has to be configured first.',
+      'Run it. The image carries the dashboard, and the volume keeps the configuration and the master key.',
+      'Or one file, from the latest release. No runtime, and a checksum file beside it.',
     ],
     setupIntro:
       'With nothing configured, <code class="mono">serve</code> starts anyway and prints an address carrying a one-time setup token:',
@@ -153,8 +160,8 @@ bin/restorelab recovery test 101`,
         body: '<code class="mono">connect --read-only</code> produces a token that cannot create or destroy anything, and is enough for discovery and <code class="mono">recovery test --dry-run</code>.',
       },
       {
-        title: 'Building without the front end',
-        body: 'A binary built without the front-end toolchain has no interface compiled in and says so instead of 404ing; <code class="mono">make ui</code> is what compiles it.',
+        title: 'Or from source',
+        body: 'Go 1.27+ and Node, because the dashboard is compiled into the binary: <code class="mono">make ui &amp;&amp; go build -o bin/restorelab ./cmd/restorelab</code>. Built without the front-end toolchain, it has no interface and says so instead of 404ing.',
       },
     ],
     moreLink: 'Full quick start →',
@@ -196,6 +203,8 @@ bin/restorelab recovery test 101`,
         'HTTP API + token auth and scopes (<code>serve</code>, <code>token</code>)',
       confidenceScore:
         'Recovery confidence score, computed from the stored history',
+      proofLevel:
+        'Proof level: what each drill established, and the ceiling it puts on the score',
       triggerOverHttp:
         'Triggering and cancelling drills over HTTP, worker, queue, live event stream',
       storedPlans:

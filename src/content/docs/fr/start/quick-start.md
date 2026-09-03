@@ -1,18 +1,31 @@
 ---
 title: Démarrage rapide
-description: Compiler le binaire, connecter un cluster et lancer un exercice — depuis le navigateur ou depuis un terminal.
+description: Le lancer depuis un conteneur ou un fichier unique, connecter un cluster et lancer un exercice — depuis le navigateur ou depuis un terminal.
 sidebar:
   order: 2
 ---
 
-:::note[Prérequis]
-Go 1.27+, jusqu’à la première publication de binaires.
-:::
-
-## Compiler et démarrer
+## Le lancer
 
 ```bash
-go build -o bin/restorelab ./cmd/restorelab
+docker run -p 8080:8080 -v restorelab:/home/restorelab/.restorelab \
+  ghcr.io/restorelab/restorelab serve --listen 0.0.0.0:8080
+```
+
+Ou un binaire, depuis la [dernière
+version](https://github.com/restorelab/restorelab/releases/latest) — un seul
+fichier, aucun runtime, avec `SHA256SUMS` à côté :
+
+```bash
+curl -fsSL -O https://github.com/restorelab/restorelab/releases/latest/download/restorelab_v0.2.0_linux_amd64.tar.gz
+tar xzf restorelab_v0.2.0_linux_amd64.tar.gz
+./restorelab serve
+```
+
+Ou depuis les sources, ce qui demande Go 1.27+ et Node pour le tableau de bord :
+
+```bash
+make ui && go build -o bin/restorelab ./cmd/restorelab
 bin/restorelab serve
 ```
 
@@ -41,8 +54,12 @@ repasser par le terminal.
 
 Le jeton est affiché sur la console de la machine qui exécute le serveur, parce
 que la personne qui installe est celle qui est assise devant. Il est dépensé par
-la première requête qui l’utilise, que cette requête réussisse ou échoue, et la
-page d’installation cesse complètement d’exister dès qu’un cluster est connecté.
+la première requête qui **tente réellement de provisionner** — que cette
+tentative réussisse ou échoue, parce qu’un jeton encore vivant après un mauvais
+mot de passe serait un secret affiché sur une console et valable jusqu’à la fin
+du processus. Un formulaire auquel il manque un champ ne le coûte pas : faire
+redémarrer tout le serveur pour une faute de frappe n’apporte rien. La page
+d’installation cesse complètement d’exister dès qu’un cluster est connecté.
 
 :::caution[Un binaire compilé sans la chaîne d’outils front-end n’a pas d’interface]
 Il le dit, au lieu de répondre 404. C’est `make ui` qui compile le tableau de

@@ -1,18 +1,31 @@
 ---
 title: Quick start
-description: Build the binary, connect a cluster, and run a drill — from the browser or from a terminal.
+description: Run it from a container or a single file, connect a cluster, and run a drill — from the browser or from a terminal.
 sidebar:
   order: 2
 ---
 
-:::note[Prerequisite]
-Go 1.27+, until the first binary release.
-:::
-
-## Build and start
+## Run it
 
 ```bash
-go build -o bin/restorelab ./cmd/restorelab
+docker run -p 8080:8080 -v restorelab:/home/restorelab/.restorelab \
+  ghcr.io/restorelab/restorelab serve --listen 0.0.0.0:8080
+```
+
+Or a binary, from the [latest
+release](https://github.com/restorelab/restorelab/releases/latest) — one file,
+no runtime, `SHA256SUMS` beside it:
+
+```bash
+curl -fsSL -O https://github.com/restorelab/restorelab/releases/latest/download/restorelab_v0.2.0_linux_amd64.tar.gz
+tar xzf restorelab_v0.2.0_linux_amd64.tar.gz
+./restorelab serve
+```
+
+Or from source, which needs Go 1.27+ and Node for the dashboard:
+
+```bash
+make ui && go build -o bin/restorelab ./cmd/restorelab
 bin/restorelab serve
 ```
 
@@ -40,8 +53,11 @@ the terminal.
 
 The token is printed on the console of the machine running the server, because
 the person installing is the one sitting at it. It is spent by the first request
-that uses it, whether that request succeeds or fails, and the setup page stops
-existing entirely the moment a cluster is connected.
+that actually tries to provision — whether that attempt succeeds or fails,
+because a token still live after a wrong password would be a secret printed on a
+console and valid until the process ends. A form that forgot a field does not
+cost it: making a typo restart the whole server buys nothing. The setup page
+stops existing entirely the moment a cluster is connected.
 
 :::caution[A binary built without the front-end toolchain has no interface]
 It says so instead of 404ing. `make ui` is what compiles the dashboard into the

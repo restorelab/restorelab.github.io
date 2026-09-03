@@ -1,3 +1,4 @@
+import { RESTORELAB_VERSION } from '../../version.ts';
 import type { LandingCopy } from './types';
 
 /**
@@ -42,7 +43,7 @@ export const fr: LandingCopy = {
     ctaGithub: 'Voir sur GitHub',
     meta: [
       'AGPL-3.0',
-      'Go 1.27+',
+      RESTORELAB_VERSION,
       'Proxmox VE',
       'Auto-hébergé',
       'Binaire unique',
@@ -135,12 +136,12 @@ export const fr: LandingCopy = {
 
   quickStart: {
     label: 'Démarrage rapide',
-    title: 'Deux commandes, puis un navigateur',
+    title: 'Une commande, puis un navigateur',
     intro:
       'Un binaire, aucun agent à installer sur les invités, aucun démon à maintenir en vie à côté. C’est tout.',
     steps: [
-      'Compilez le binaire. Go 1.27+ est requis jusqu’à la première publication de binaires.',
-      'Démarrez-le. Rien n’a besoin d’être configuré d’abord.',
+      'Lancez-le. L’image embarque le tableau de bord, et le volume conserve la configuration et la clé maîtresse.',
+      'Ou un seul fichier, depuis la dernière version. Aucun runtime, et une somme de contrôle à côté.',
     ],
     setupIntro:
       'Sans aucune configuration, <code class="mono">serve</code> démarre quand même et affiche une adresse porteuse d’un jeton d’installation à usage unique :',
@@ -166,8 +167,8 @@ bin/restorelab recovery test 101`,
         body: '<code class="mono">connect --read-only</code> produit un jeton qui ne peut rien créer ni rien détruire, et qui suffit à la découverte et à <code class="mono">recovery test --dry-run</code>.',
       },
       {
-        title: 'Compiler sans le front-end',
-        body: 'Un binaire compilé sans la chaîne d’outils front-end n’embarque pas d’interface et le dit, au lieu de répondre 404 ; c’est <code class="mono">make ui</code> qui la compile.',
+        title: 'Ou depuis les sources',
+        body: 'Go 1.27+ et Node, parce que le tableau de bord est compilé dans le binaire : <code class="mono">make ui &amp;&amp; go build -o bin/restorelab ./cmd/restorelab</code>. Compilé sans la chaîne d’outils front-end, il n’embarque pas d’interface et le dit, au lieu de répondre 404.',
       },
     ],
     moreLink: 'Démarrage rapide complet →',
@@ -209,6 +210,8 @@ bin/restorelab recovery test 101`,
         'API HTTP + authentification par jeton et portées (<code>serve</code>, <code>token</code>)',
       confidenceScore:
         'Score de confiance de restauration, calculé depuis l’historique stocké',
+      proofLevel:
+        'Niveau de preuve : ce que chaque exercice a établi, et le plafond que ça met sur le score',
       triggerOverHttp:
         'Déclenchement et annulation d’exercices via HTTP, worker, file d’attente, flux d’événements en direct',
       storedPlans:
