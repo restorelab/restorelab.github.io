@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.astro/
+.DS_Store
+*.log
+
+# Artefacts de build : la source committée est spec/openapi.yaml
+public/openapi.yaml
+
+# Artefacts locaux des scripts de démonstration, jamais committés
+demo.db
+demo.db-*
+.restorelab-demo/
+
+# Checkout temporaire du dépôt principal, posé par le workflow de sync
+.restorelab-src/

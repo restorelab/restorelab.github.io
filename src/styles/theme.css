@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+
+/*
+ * Starlight se repeint par variables CSS. L'accent reprend le cyan du badge Go
+ * du README, assombri pour tenir le contraste AA sur fond clair.
+ */
+:root {
+  --sl-color-accent-low: #002b38;
+  --sl-color-accent: #0e7490;
+  --sl-color-accent-high: #a5e5f5;
+  --sl-content-width: 50rem;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #c7ecf6;
+  --sl-color-accent: #0e7490;
+  --sl-color-accent-high: #08414f;
+}
