@@ -2,14 +2,14 @@ import { RESTORELAB_VERSION } from '../../version.ts';
 import type { LandingCopy } from './types';
 
 /**
- * La copie anglaise de la landing — les chaînes d'origine, sorties du markup
+ * La copie anglaise de la landing, les chaînes d'origine, sorties du markup
  * sans être retouchées. Les entités `&rsquo;` sont devenues des apostrophes
  * typographiques littérales : ces chaînes sont maintenant rendues comme du
  * texte, pas comme du HTML, donc une entité s'afficherait telle quelle.
  */
 export const en: LandingCopy = {
   meta: {
-    title: 'RestoreLab — can you actually recover?',
+    title: 'RestoreLab: can you actually recover?',
     description:
       'Automated recovery drills: restore a backup into an isolated network, boot it, check it from inside, measure the RTO, and destroy it.',
     ogLocale: 'en_US',
@@ -89,7 +89,7 @@ export const en: LandingCopy = {
       },
       {
         title: 'Never touches production',
-        body: 'Every temporary resource is created by RestoreLab with <code class="mono">restorelab_managed=true</code> metadata, and delete refuses any workload that does not carry it. Restores go to a reserved VMID range — 9000–9999 by default — never over an existing workload.',
+        body: 'Every temporary resource is created by RestoreLab with <code class="mono">restorelab_managed=true</code> metadata, and delete refuses any workload that does not carry it. Restores go to a reserved VMID range (9000–9999 by default), never over an existing workload.',
       },
     ],
   },
@@ -98,7 +98,7 @@ export const en: LandingCopy = {
     label: 'The dashboard',
     title: 'The dashboard runs the tool',
     intro:
-      'It shows what is running, what has run, what is protected and whether the cluster is configured correctly, with a drill’s phases filling in live while it happens — and it starts drills, cancels them, destroys what they leave behind, and writes the plan catalogue with the binary itself validating each document as you type.',
+      'It shows what is running, what has run, what is protected and whether the cluster is configured correctly, with a drill’s phases filling in live while it happens. It starts drills, cancels them, destroys what they leave behind, and writes the plan catalogue with the binary itself validating each document as you type.',
     intro2:
       'Proving a backup can recover a service is worth doing by an operations team, not only by whoever is comfortable in a terminal. The command line keeps every capability; it is what automation drives.',
     shots: {
@@ -139,12 +139,12 @@ export const en: LandingCopy = {
     setupIntro:
       'With nothing configured, <code class="mono">serve</code> starts anyway and prints an address carrying a one-time setup token:',
     setupBody:
-      'Open it and the browser asks for your cluster’s address, an administrator’s password, and the storage drills restore onto. RestoreLab uses that password once, in memory, to create its own least-privilege service account, then throws it away — only the resulting token is stored, sealed with a master key it generates for you. It offers to create the isolated bridge on the same screen.',
+      'Open it and the browser asks for your cluster’s address, an administrator’s password, and the storage drills restore onto. RestoreLab uses that password once, in memory, to create its own least-privilege service account, then throws it away. Only the resulting token is stored, sealed with a master key it generates for you. It offers to create the isolated bridge on the same screen.',
     setupBody2:
       'When it finishes, the server restarts itself and the page you are already on opens your session. You land on the dashboard, connected, without going back to the terminal.',
     subheadTitle: 'The same thing from a terminal',
     subheadBody:
-      'Every capability stays on the command line — it is what automation drives.',
+      'Every capability stays on the command line. It is what automation drives.',
     terminal: `# Connect your cluster. Same password handling, same service account.
 bin/restorelab connect https://pve.example.com:8006 --storage local-zfs
 
@@ -241,7 +241,7 @@ bin/restorelab recovery test 101`,
     licenceTitle: 'Licence',
     licenceBody:
       'RestoreLab is free to self-host, modify and run. If you offer it as a network service, the same freedoms must reach your users.',
-    baseLeft: 'RestoreLab — AGPL-3.0',
+    baseLeft: 'RestoreLab, AGPL-3.0',
     baseRight: 'Automated recovery drills for Proxmox VE',
     links: {
       introduction: 'Introduction',

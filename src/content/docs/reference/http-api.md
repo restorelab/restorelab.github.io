@@ -16,15 +16,15 @@ in the [API reference](/api/), generated from the
 
 ## How a write actually happens
 
-No handler in `internal/api` calls a mutating provider method — `Restore`,
+No handler in `internal/api` calls a mutating provider method: `Restore`,
 `Start`, `Stop`, `Delete` or `AllocateWorkloadID`. That is still true now that
 the API can trigger a drill, and it is not a promise kept by code review: the
 fake provider the handler tests run against fails the test outright if any of
 those methods is reached, and a second test greps the package for those names
 outside `_test.go` files.
 
-What `POST /recovery-runs` does instead is write one row. A worker — in the same
-process by default, or on another machine — claims that row and runs the drill
+What `POST /recovery-runs` does instead is write one row. A worker (in the same
+process by default, or on another machine) claims that row and runs the drill
 through the same `recovery.Engine` the CLI uses, with every guard the engine
 already carries. The API and the worker never call each other; they share a
 database and nothing else, which is what makes splitting them a deployment
@@ -46,8 +46,8 @@ that appeared on every interface the moment someone typed `serve` would be a
 surprise, and surprises with API surfaces are how clusters end up readable by
 strangers.
 
-TLS is not handled by RestoreLab. Put a reverse proxy in front of it — nginx,
-Caddy, whatever you already run:
+TLS is not handled by RestoreLab. Put a reverse proxy in front of it (nginx,
+Caddy, whatever you already run):
 
 ```nginx
 server {
@@ -81,7 +81,7 @@ error: refusing to listen on 0.0.0.0:8080 with no API token: create one with `re
 ```
 
 `serve` checks this once, at startup, by listing tokens and counting the live
-ones — so a server that starts with a token and later has that token revoked
+ones. So a server that starts with a token and later has that token revoked
 keeps running; nothing re-checks the binding on every request.
 
 By default `serve` both answers requests and executes the drills those requests
@@ -94,12 +94,12 @@ restorelab serve --no-worker --worker-elsewhere     the API alone
 ```
 
 `--no-worker` on its own is refused, and the refusal is the point. A server that
-accepts `POST /recovery-runs` with nobody draining the queue answers
-`201 Created` to a caller that will then wait forever: the run is genuinely
-queued, the response is genuinely correct, and the drill will never happen.
-Nothing can verify from inside the process that a worker exists somewhere else —
-a worker on another machine leaves no trace until it claims something — so the
-honest design is to make the operator say it out loud rather than to guess.
+accepts `POST /recovery-runs` with nobody draining the queue answers `201
+Created` to a caller that will then wait forever: the run is genuinely queued,
+the response is genuinely correct, and the drill will never happen. Nothing can
+verify from inside the process that a worker exists somewhere else (a worker on
+another machine leaves no trace until it claims something), so the honest design
+is to make the operator say it out loud rather than to guess.
 
 ## Scopes
 
@@ -119,7 +119,7 @@ hand anyone.
 that is the whole reason `manage` exists as a separate scope rather than as more
 room inside `operate`. Triggering a drill and deciding what a drill *is* are two
 different powers. A token handed to a dashboard so it can launch and cancel has
-no business rewriting the definition of what it launches — and a token given to
+no business rewriting the definition of what it launches, and a token given to
 a CI job so it can `plan apply` from a git repository has no business restoring
 backups by itself. A token can hold both; it has to say so.
 
@@ -154,7 +154,7 @@ token on the next request rather than in twelve hours' time. A cookie is a
 different way to present the same credential, never a way to hold more of it.
 
 The cookie is `__Host-` prefixed, `HttpOnly`, `Secure`, `SameSite=Strict`,
-`Path=/`, with no `Domain`, and `Max-Age=43200` — twelve hours, absolute, never
+`Path=/`, with no `Domain`, and `Max-Age=43200`: twelve hours, absolute, never
 extended. A sliding expiry would be more comfortable, since nobody would be
 logged out mid-drill, but an open tab polling a listing would then hold a
 session forever, and this one can destroy machines. Twelve hours covers a
@@ -171,7 +171,7 @@ Two consequences worth knowing before you deploy:
 - **Every cookie-authenticated write must carry a matching `Origin`.**
   `SameSite=Strict` stops another *site*, but not a sibling subdomain, which is
   the same site to a cookie and a different origin to everything else. The
-  reference is the request's own `Host` — the dashboard is served by this same
+  reference is the request's own `Host`: the dashboard is served by this same
   binary, so the legitimate origin is by construction the one just reached, and
   a value to configure is a value to get wrong. That is why the reverse proxy
   above must pass the original `Host`: one that rewrites it makes every
@@ -183,3 +183,4 @@ Two consequences worth knowing before you deploy:
 Every route, its parameters, its request and response schemas, and the scope it
 requires are in the [API reference](/api/). The contract itself is published as
 [`/openapi.yaml`](/openapi.yaml), so a client can be generated from it.
+

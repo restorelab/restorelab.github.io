@@ -1,6 +1,6 @@
 ---
 title: Quick start
-description: Run it from a container or a single file, connect a cluster, and run a drill — from the browser or from a terminal.
+description: Run it from a container or a single file, connect a cluster, and run a drill, from the browser or from a terminal.
 sidebar:
   order: 2
 ---
@@ -13,7 +13,7 @@ docker run -p 8080:8080 -v restorelab:/home/restorelab/.restorelab \
 ```
 
 Or a binary, from the [latest
-release](https://github.com/restorelab/restorelab/releases/latest) — one file,
+release](https://github.com/restorelab/restorelab/releases/latest): one file,
 no runtime, `SHA256SUMS` beside it:
 
 ```bash
@@ -42,7 +42,7 @@ prints an address carrying a one-time setup token:
 Open it and the browser asks for your cluster's address, an administrator's
 password, and the storage drills restore onto. RestoreLab uses that password
 once, in memory, to create its own least-privilege service account, then throws
-it away — only the resulting token is stored, sealed with a master key it
+it away. Only the resulting token is stored, sealed with a master key it
 generates for you. It offers to create the isolated bridge on the same screen,
 saying plainly that no existing interface is touched and that the node's network
 configuration will be reloaded.
@@ -53,7 +53,7 @@ the terminal.
 
 The token is printed on the console of the machine running the server, because
 the person installing is the one sitting at it. It is spent by the first request
-that actually tries to provision — whether that attempt succeeds or fails,
+that actually tries to provision, whether that attempt succeeds or fails,
 because a token still live after a wrong password would be a secret printed on a
 console and valid until the process ends. A form that forgot a field does not
 cost it: making a typo restart the whole server buys nothing. The setup page
@@ -71,7 +71,7 @@ rules and for putting a reverse proxy in front.
 
 ## The same thing from a terminal
 
-Every capability stays on the command line — it is what automation drives:
+Every capability stays on the command line. It is what automation drives:
 
 ```bash
 # Connect your cluster. Same password handling, same service account.
@@ -101,3 +101,4 @@ the plan catalogue, and neither implies the other. The
 
 [Your first drill](/start/first-drill/) walks through `recovery test 101` phase
 by phase, and explains what each line of the output means.
+

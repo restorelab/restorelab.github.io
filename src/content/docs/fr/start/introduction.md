@@ -41,25 +41,25 @@ nettoyage ne puisse jamais toucher ce qu’il n’a pas créé.
 Cette sûreté n’est pas une note de bas de page : c’est ce qui rend l’outil
 exécutable contre un cluster auquel vous tenez.
 
-- **Isolé par défaut** — les restaurations arrivent sur un bridge dédié sans
+- **Isolé par défaut** : les restaurations arrivent sur un bridge dédié sans
   lien montant, la configuration réseau héritée de la sauvegarde est réécrite,
   et une exécution est refusée quand l’isolation ne peut pas être vérifiée.
-- **Ne touche jamais la production** — chaque ressource temporaire est créée par
+- **Ne touche jamais la production** : chaque ressource temporaire est créée par
   RestoreLab avec la métadonnée `restorelab_managed=true`, et la suppression
   refuse toute charge de travail qui ne la porte pas.
-- **Des identifiants temporaires seulement** — les restaurations vont dans une
+- **Des identifiants temporaires seulement** : les restaurations vont dans une
   plage de VMID réservée (9000–9999 par défaut), jamais par-dessus une charge de
   travail existante.
-- **Le nettoyage s’exécute toujours** — y compris après un échec, un dépassement
+- **Le nettoyage s’exécute toujours** : y compris après un échec, un dépassement
   de délai ou une annulation ; un nettoyage en échec est une alerte bruyante et
   nommée, jamais un orphelin silencieux.
-- **Un exercice interrompu n’est jamais rejoué** — une exécution dont le worker
+- **Un exercice interrompu n’est jamais rejoué** : une exécution dont le worker
   est mort est marquée en échec et nettoyée, pas retentée. Un exercice est
   destructeur et non idempotent : le relancer restaurerait une seconde fois et
   laisserait la première charge de travail temporaire orpheline.
-- **Aucun secret en clair** — les jetons d’API sont scellés en AES-256-GCM sous
+- **Aucun secret en clair** : les jetons d’API sont scellés en AES-256-GCM sous
   une clé maîtresse qui n’est jamais stockée dans le fichier de configuration.
-- **Privilège minimal par défaut** — `connect` crée un compte de service
+- **Privilège minimal par défaut** : `connect` crée un compte de service
   cantonné à un pool de ressources dédié, parce qu’une installation sûre qui
   tient en une commande est celle que les gens déploient vraiment.
 
@@ -79,21 +79,21 @@ d’attente.
 L’interface web est la priorité, et sa première moitié est là. Le tableau de
 bord pilote l’outil dès aujourd’hui : il montre ce qui tourne, ce qui a tourné,
 ce qui est protégé et si le cluster est correctement configuré, les phases d’un
-exercice se remplissant en direct pendant qu’il se déroule — et il lance des
+exercice se remplissant en direct pendant qu’il se déroule. Il lance des
 exercices, les annule, détruit ce qu’ils laissent derrière eux, et rédige le
 catalogue de plans, le binaire lui-même validant chaque document à la frappe.
 
-Un plan n’a plus besoin d’être lancé à la main. Un plan porteur d’un
-`schedule` met ses propres exercices en file, et un créneau échu pendant que le
-serveur était éteint est ignoré plutôt que rattrapé des heures plus tard — voir
-[la planification](/fr/guides/scheduling/).
+Un plan n’a plus besoin d’être lancé à la main. Un plan porteur d’un `schedule`
+met ses propres exercices en file, et un créneau échu pendant que le serveur
+était éteint est ignoré plutôt que rattrapé des heures plus tard. Voir [la
+planification](/fr/guides/scheduling/).
 
 :::caution[Deux choses n’ont jamais vu de vrai matériel]
 La découverte **Proxmox Backup Server** et les **contrôles réseau** sont
 implémentés et couverts par des tests unitaires, mais n’ont jamais été exécutés
 contre une vraie infrastructure, parce que le cluster sur lequel tout ceci a été
 construit n’a ni l’un ni l’autre. Les contrôles réseau ont besoin d’une route
-vers le bridge isolé — voir [isolation réseau](/fr/guides/network-isolation/).
+vers le bridge isolé. Voir [isolation réseau](/fr/guides/network-isolation/).
 Tout le reste a été piloté contre un cluster Proxmox VE 9 en service.
 :::
 
@@ -131,3 +131,4 @@ d’architecture](/fr/reference/architecture/).
 
 Lancez-le et connectez un cluster dans le [démarrage
 rapide](/fr/start/quick-start/).
+

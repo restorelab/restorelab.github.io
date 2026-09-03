@@ -40,23 +40,23 @@ create.
 That safety is not a side note; it is what makes the tool runnable against a
 cluster you care about:
 
-- **Isolated by default** — restores land on a dedicated bridge with no uplink,
+- **Isolated by default**: restores land on a dedicated bridge with no uplink,
   the network configuration inherited from the backup is rewritten, and a run is
   refused when isolation cannot be verified.
-- **Never touches production** — every temporary resource is created by
+- **Never touches production**: every temporary resource is created by
   RestoreLab with `restorelab_managed=true` metadata, and delete refuses any
   workload that does not carry it.
-- **Temporary IDs only** — restores go to a reserved VMID range (9000–9999 by
+- **Temporary IDs only**: restores go to a reserved VMID range (9000–9999 by
   default), never over an existing workload.
-- **Cleanup always runs** — including after a failure, a timeout or a cancelled
+- **Cleanup always runs**: including after a failure, a timeout or a cancelled
   run; a failed cleanup is a loud, named alert, never a silent orphan.
-- **An interrupted drill is never replayed** — a run whose worker died is failed
+- **An interrupted drill is never replayed**: a run whose worker died is failed
   and cleaned up, not retried. A drill is destructive and not idempotent, so
   re-running one would restore a second time and orphan the first temporary
   workload.
-- **No plaintext secrets** — API tokens are sealed with AES-256-GCM under a
+- **No plaintext secrets**: API tokens are sealed with AES-256-GCM under a
   master key that is never stored in the config file.
-- **Least privilege by default** — `connect` creates a service account scoped to
+- **Least privilege by default**: `connect` creates a service account scoped to
   a dedicated resource pool, because a safe setup that takes one command is the
   one people actually deploy.
 
@@ -74,20 +74,19 @@ queue.
 The web interface is the priority, and its first half is here. The dashboard
 runs the tool today: it shows what is running, what has run, what is protected
 and whether the cluster is configured correctly, with a drill's phases filling
-in live while it happens — and it starts drills, cancels them, destroys what
+in live while it happens. It starts drills, cancels them, destroys what
 they leave behind, and writes the plan catalogue with the binary itself
 validating each document as you type.
 
-A plan no longer has to be launched by hand. A plan carrying a `schedule`
-queues its own drills, and a slot that comes due while the server was off is
-skipped rather than caught up hours later — see
-[scheduling](/guides/scheduling/).
+A plan no longer has to be launched by hand. A plan carrying a `schedule` queues
+its own drills, and a slot that comes due while the server was off is skipped
+rather than caught up hours later. See [scheduling](/guides/scheduling/).
 
 :::caution[Two things have never met real hardware]
 **Proxmox Backup Server** discovery and the **network checks** are implemented
 and unit-tested, but have never run against real infrastructure, because the
 cluster this was built on has neither. The network checks need a route into the
-isolated bridge — see [network isolation](/guides/network-isolation/).
+isolated bridge. See [network isolation](/guides/network-isolation/).
 Everything else has been driven against a live Proxmox VE 9 cluster.
 :::
 
@@ -123,3 +122,4 @@ built in, are in the [architecture reference](/reference/architecture/).
 ## Next
 
 Run it and connect a cluster in the [quick start](/start/quick-start/).
+

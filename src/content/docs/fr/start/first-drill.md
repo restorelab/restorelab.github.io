@@ -35,7 +35,7 @@ RTO: 2m17s
 
 Le moteur est une machine à états linéaire avec une garantie : à partir du
 moment où une charge de travail temporaire pourrait exister, le nettoyage
-s’exécute — en cas de succès, d’échec, de dépassement de délai, d’annulation ou
+s’exécute : en cas de succès, d’échec, de dépassement de délai, d’annulation ou
 de panique.
 
 ```text
@@ -62,46 +62,45 @@ SUCCESS | DEGRADED | FAILED | CLEANUP_FAILED
 
 Ligne par ligne, en regard de la sortie ci-dessus :
 
-**`Connected to Proxmox`** — le fournisseur avec lequel RestoreLab a été
+**`Connected to Proxmox`** : le fournisseur avec lequel RestoreLab a été
 configuré a répondu. Si plusieurs sont configurés, `--provider` en désigne un.
 
-**`VM 101 found`** — l’identifiant de charge de travail que vous avez passé
+**`VM 101 found`** : l’identifiant de charge de travail que vous avez passé
 correspond à une charge réelle sur le cluster. C’est la VM de production, et
 elle est lue, jamais écrite.
 
-**`Backup found`** — `discover_backup`. Le point de restauration le plus récent
+**`Backup found`** : `discover_backup`. Le point de restauration le plus récent
 est résolu, et son âge est contrôlé face au `max_age` du plan. Une sauvegarde
-plus ancienne que ce que le plan autorise fait échouer l’exécution ici, avant
-que rien ne soit créé — et c’est bien l’intention : un exercice qui restaurerait
+plus ancienne que ce que le plan autorise fait échouer l’exécution ici, avant que rien ne soit créé. C’est bien l’intention : un exercice qui restaurerait
 en silence un instantané de trois semaines rapporterait une reprise dont
 personne ne pourrait réellement se servir.
 
-**`Restore started`** — `prepare_environment` a déjà été exécuté à ce stade.
+**`Restore started`** : `prepare_environment` a déjà été exécuté à ce stade.
 L’isolation est vérifiée, la capacité est vérifiée, et un identifiant temporaire
 est alloué depuis la plage réservée, `9000–9999` par défaut. Une exécution est
 refusée quand l’isolation ne peut pas être vérifiée ; voir [isolation
 réseau](/fr/guides/network-isolation/).
 
-**`Temporary VM created`** — `restore` a terminé, et la charge de travail
+**`Temporary VM created`** : `restore` a terminé, et la charge de travail
 temporaire a été durcie : la configuration réseau héritée de la sauvegarde est
 réécrite sur le bridge isolé, les limites de CPU et de mémoire sont appliquées,
 et la métadonnée `restorelab_managed=true` est apposée. C’est cette métadonnée
 qui permet à la suppression de refuser tout ce que RestoreLab n’a pas créé.
 
-**`VM booted`** — `start`, puis `wait_for_guest` : le statut est interrogé
+**`VM booted`** : `start`, puis `wait_for_guest` : le statut est interrogé
 jusqu’à ce que la charge de travail soit démarrée et adressable.
 
-**`TCP/22 reachable`** — `run_checks`. Chaque contrôle est réessayé selon son
+**`TCP/22 reachable`** : `run_checks`. Chaque contrôle est réessayé selon son
 propre rythme avant d’être déclaré en échec, parce qu’un service qui a besoin de
 onze secondes pour s’attacher à son port est un service qui est revenu.
 
-**`VM removed`** — `cleanup`. Arrêt, puis suppression, sur un contexte détaché,
+**`VM removed`** : `cleanup`. Arrêt, puis suppression, sur un contexte détaché,
 pour qu’une exécution annulée ou expirée nettoie quand même derrière elle. Un
 nettoyage qui échoue règle l’exécution en `CLEANUP_FAILED`, avec le nœud et
 l’identifiant dans l’erreur : un orphelin bruyant plutôt qu’un orphelin
 silencieux.
 
-**`Recovery successful` / `RTO: 2m17s`** — le verdict. Le RTO est mesuré du
+**`Recovery successful` / `RTO: 2m17s`** : le verdict. Le RTO est mesuré du
 début de l’exécution à la fin des contrôles. Le nettoyage et la génération du
 rapport sont exclus : c’est l’intendance de RestoreLab, pas une partie de la
 reprise qu’une activité subirait.
@@ -116,7 +115,7 @@ reprise qu’une activité subirait.
 
 Un exercice est destructeur et non idempotent : rien n’est donc jamais rejoué.
 Une exécution dont le worker est mort est réglée en échec et nettoyée, jamais
-retentée — la relancer allouerait un second identifiant temporaire, restaurerait
+retentée : la relancer allouerait un second identifiant temporaire, restaurerait
 une seconde fois, et laisserait la première charge de travail orpheline.
 
 ## Contrôler plus qu’un port
@@ -133,9 +132,9 @@ bin/restorelab recovery test 101 \
 
 Un contrôle `cmd:` s’exécute à l’intérieur de l’invité restauré via le QEMU
 guest agent : il n’a donc besoin d’aucune route réseau vers le réseau isolé de
-restauration. L’interpréteur est choisi d’après l’OS de l’invité lui-même —
-`cmd` sous Windows, `/bin/sh` ailleurs — de sorte que le même `--check`
-fonctionne sur l’un comme sur l’autre.
+restauration. L’interpréteur est choisi d’après l’OS de l’invité lui-même (`cmd`
+sous Windows, `/bin/sh` ailleurs), de sorte que le même `--check` fonctionne sur
+l’un comme sur l’autre.
 
 Des drapeaux utiles le temps de prendre vos repères :
 
@@ -143,17 +142,18 @@ Des drapeaux utiles le temps de prendre vos repères :
 | --- | --- |
 | `--dry-run` | résout la sauvegarde et valide le plan sans rien restaurer |
 | `--keep` | conserve la charge de travail temporaire au lieu de la détruire (débogage) |
-| `--report <path>` | écrit le rapport dans un fichier — `.json`, `.html` ou `.txt` selon l’extension |
+| `--report <path>` | écrit le rapport dans un fichier : `.json`, `.html` ou `.txt` selon l’extension |
 | `--node`, `--storage`, `--pool`, `--network` | forcent l’endroit où la restauration atterrit |
 
 ## Après l’exercice
 
 Chaque exercice est enregistré. `restorelab runs list` montre les exercices
 passés, du plus récent au plus ancien, et `restorelab runs show <run-id>` en
-rejoue un intégralement — le même historique que lit le tableau de bord, et
+rejoue un intégralement : le même historique que lit le tableau de bord, et
 celui depuis lequel le score de confiance de restauration est calculé.
 
 Une fois la forme d’un exercice arrêtée, écrivez-la comme un plan de
 restauration plutôt que de passer des drapeaux : voir [plans de
 restauration](/fr/guides/recovery-plans/) pour le format de plan et tous les
 types de contrôle.
+

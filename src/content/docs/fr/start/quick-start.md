@@ -1,6 +1,6 @@
 ---
 title: Démarrage rapide
-description: Le lancer depuis un conteneur ou un fichier unique, connecter un cluster et lancer un exercice — depuis le navigateur ou depuis un terminal.
+description: Le lancer depuis un conteneur ou un fichier unique, connecter un cluster et lancer un exercice, depuis le navigateur ou depuis un terminal.
 sidebar:
   order: 2
 ---
@@ -13,7 +13,7 @@ docker run -p 8080:8080 -v restorelab:/home/restorelab/.restorelab \
 ```
 
 Ou un binaire, depuis la [dernière
-version](https://github.com/restorelab/restorelab/releases/latest) — un seul
+version](https://github.com/restorelab/restorelab/releases/latest) : un seul
 fichier, aucun runtime, avec `SHA256SUMS` à côté :
 
 ```bash
@@ -42,7 +42,7 @@ adresse porteuse d’un jeton d’installation à usage unique :
 Ouvrez-la et le navigateur demande l’adresse de votre cluster, le mot de passe
 d’un administrateur, et le stockage sur lequel les exercices restaurent.
 RestoreLab utilise ce mot de passe une seule fois, en mémoire, pour créer son
-propre compte de service au privilège minimal, puis le jette — seul le jeton
+propre compte de service au privilège minimal, puis le jette. Seul le jeton
 obtenu est conservé, scellé sous une clé maîtresse qu’il génère pour vous. Il
 propose de créer le bridge isolé sur le même écran, en disant clairement
 qu’aucune interface existante n’est touchée et que la configuration réseau du
@@ -54,7 +54,7 @@ repasser par le terminal.
 
 Le jeton est affiché sur la console de la machine qui exécute le serveur, parce
 que la personne qui installe est celle qui est assise devant. Il est dépensé par
-la première requête qui **tente réellement de provisionner** — que cette
+la première requête qui **tente réellement de provisionner** : que cette
 tentative réussisse ou échoue, parce qu’un jeton encore vivant après un mauvais
 mot de passe serait un secret affiché sur une console et valable jusqu’à la fin
 du processus. Un formulaire auquel il manque un champ ne le coûte pas : faire
@@ -74,7 +74,7 @@ et pour placer un proxy inverse devant.
 
 ## La même chose depuis un terminal
 
-Toutes les capacités restent en ligne de commande — c’est ce que l’automatisation
+Toutes les capacités restent en ligne de commande. C’est ce que l’automatisation
 pilote :
 
 ```bash
@@ -106,3 +106,4 @@ HTTP](/fr/reference/http-api/) contient le reste.
 
 [Votre premier exercice](/fr/start/first-drill/) déroule `recovery test 101`
 phase par phase, et explique ce que signifie chaque ligne de la sortie.
+

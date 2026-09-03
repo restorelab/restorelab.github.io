@@ -16,7 +16,7 @@ import type { LandingCopy } from './types';
  */
 export const fr: LandingCopy = {
   meta: {
-    title: 'RestoreLab — pouvez-vous vraiment restaurer ?',
+    title: 'RestoreLab : pouvez-vous vraiment restaurer ?',
     description:
       'Exercices de restauration automatisés : restaurer une sauvegarde dans un réseau isolé, la démarrer, la contrôler depuis l’intérieur, mesurer le RTO, et la détruire.',
     ogLocale: 'fr_FR',
@@ -96,7 +96,7 @@ export const fr: LandingCopy = {
       },
       {
         title: 'Ne touche jamais la production',
-        body: 'Chaque ressource temporaire est créée par RestoreLab avec la métadonnée <code class="mono">restorelab_managed=true</code>, et la suppression refuse toute charge de travail qui ne la porte pas. Les restaurations vont dans une plage de VMID réservée — 9000–9999 par défaut — jamais par-dessus une charge de travail existante.',
+        body: 'Chaque ressource temporaire est créée par RestoreLab avec la métadonnée <code class="mono">restorelab_managed=true</code>, et la suppression refuse toute charge de travail qui ne la porte pas. Les restaurations vont dans une plage de VMID réservée (9000–9999 par défaut), jamais par-dessus une charge de travail existante.',
       },
     ],
   },
@@ -105,7 +105,7 @@ export const fr: LandingCopy = {
     label: 'Le tableau de bord',
     title: 'Le tableau de bord pilote l’outil',
     intro:
-      'Il montre ce qui tourne, ce qui a tourné, ce qui est protégé et si le cluster est correctement configuré, les phases d’un exercice se remplissant en direct pendant qu’il se déroule — et il lance des exercices, les annule, détruit ce qu’ils laissent derrière eux, et rédige le catalogue de plans, le binaire lui-même validant chaque document à la frappe.',
+      'Il montre ce qui tourne, ce qui a tourné, ce qui est protégé et si le cluster est correctement configuré, les phases d’un exercice se remplissant en direct pendant qu’il se déroule. Il lance des exercices, les annule, détruit ce qu’ils laissent derrière eux, et rédige le catalogue de plans, le binaire lui-même validant chaque document à la frappe.',
     intro2:
       'Prouver qu’une sauvegarde peut faire revenir un service mérite d’être fait par une équipe d’exploitation, pas seulement par qui est à l’aise dans un terminal. La ligne de commande conserve toutes les capacités ; c’est elle que l’automatisation pilote.',
     shots: {
@@ -146,12 +146,12 @@ export const fr: LandingCopy = {
     setupIntro:
       'Sans aucune configuration, <code class="mono">serve</code> démarre quand même et affiche une adresse porteuse d’un jeton d’installation à usage unique :',
     setupBody:
-      'Ouvrez-la et le navigateur demande l’adresse de votre cluster, le mot de passe d’un administrateur, et le stockage sur lequel les exercices restaurent. RestoreLab utilise ce mot de passe une seule fois, en mémoire, pour créer son propre compte de service au privilège minimal, puis le jette — seul le jeton obtenu est conservé, scellé sous une clé maîtresse qu’il génère pour vous. Il propose de créer le bridge isolé sur le même écran.',
+      'Ouvrez-la et le navigateur demande l’adresse de votre cluster, le mot de passe d’un administrateur, et le stockage sur lequel les exercices restaurent. RestoreLab utilise ce mot de passe une seule fois, en mémoire, pour créer son propre compte de service au privilège minimal, puis le jette. Seul le jeton obtenu est conservé, scellé sous une clé maîtresse qu’il génère pour vous. Il propose de créer le bridge isolé sur le même écran.',
     setupBody2:
       'Quand il a terminé, le serveur se redémarre lui-même et la page où vous êtes déjà ouvre votre session. Vous arrivez sur le tableau de bord, connecté, sans repasser par le terminal.',
     subheadTitle: 'La même chose depuis un terminal',
     subheadBody:
-      'Toutes les capacités restent en ligne de commande — c’est ce que l’automatisation pilote.',
+      'Toutes les capacités restent en ligne de commande. C’est ce que l’automatisation pilote.',
     terminal: `# Connectez votre cluster. Même traitement du mot de passe, même compte de service.
 bin/restorelab connect https://pve.example.com:8006 --storage local-zfs
 
@@ -252,7 +252,7 @@ bin/restorelab recovery test 101`,
     licenceTitle: 'Licence',
     licenceBody:
       'RestoreLab est libre d’être auto-hébergé, modifié et exécuté. Si vous le proposez comme service en réseau, les mêmes libertés doivent parvenir à vos utilisateurs.',
-    baseLeft: 'RestoreLab — AGPL-3.0',
+    baseLeft: 'RestoreLab, AGPL-3.0',
     baseRight: 'Exercices de restauration automatisés pour Proxmox VE',
     links: {
       introduction: 'Introduction',

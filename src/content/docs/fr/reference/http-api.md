@@ -23,7 +23,7 @@ référence engendrée ne l’est pas.
 ## Comment une écriture se produit réellement
 
 Aucun gestionnaire de `internal/api` n’appelle une méthode de fournisseur qui
-mute — `Restore`, `Start`, `Stop`, `Delete` ou `AllocateWorkloadID`. Cela reste
+mute : `Restore`, `Start`, `Stop`, `Delete` ou `AllocateWorkloadID`. Cela reste
 vrai maintenant que l’API peut déclencher un exercice, et ce n’est pas une
 promesse tenue par relecture de code : le faux fournisseur contre lequel
 s’exécutent les tests des gestionnaires fait échouer le test sur-le-champ si
@@ -31,7 +31,7 @@ l’une de ces méthodes est atteinte, et un second test cherche ces noms dans l
 paquet en dehors des fichiers `_test.go`.
 
 Ce que fait `POST /recovery-runs` à la place, c’est écrire une ligne. Un worker
-— dans le même processus par défaut, ou sur une autre machine — revendique cette
+(dans le même processus par défaut, ou sur une autre machine) revendique cette
 ligne et exécute l’exercice à travers le même `recovery.Engine` que celui de la
 CLI, avec toutes les protections que le moteur porte déjà. L’API et le worker ne
 s’appellent jamais l’un l’autre ; ils partagent une base de données et rien
@@ -55,8 +55,8 @@ qui apparaîtrait sur toutes les interfaces dès que quelqu’un tape `serve` se
 une surprise, et les surprises sur des surfaces d’API sont la manière dont des
 clusters finissent lisibles par des inconnus.
 
-TLS n’est pas géré par RestoreLab. Placez un proxy inverse devant — nginx,
-Caddy, ce que vous exploitez déjà :
+TLS n’est pas géré par RestoreLab. Placez devant lui un proxy inverse (nginx,
+Caddy, ce que vous exploitez déjà) :
 
 ```nginx
 server {
@@ -93,7 +93,7 @@ error: refusing to listen on 0.0.0.0:8080 with no API token: create one with `re
 ```
 
 `serve` ne le contrôle qu’une fois, au démarrage, en listant les jetons et en
-comptant ceux qui sont vivants — donc un serveur qui démarre avec un jeton et
+comptant ceux qui sont vivants. Donc un serveur qui démarre avec un jeton et
 dont ce jeton est révoqué plus tard continue de tourner ; rien ne recontrôle
 l’écoute à chaque requête.
 
@@ -107,12 +107,12 @@ restorelab serve --no-worker --worker-elsewhere     l’API seule
 ```
 
 `--no-worker` seul est refusé, et ce refus est le point important. Un serveur
-qui accepte `POST /recovery-runs` sans personne pour vider la file répond
-`201 Created` à un appelant qui attendra ensuite indéfiniment : l’exécution est
+qui accepte `POST /recovery-runs` sans personne pour vider la file répond `201
+Created` à un appelant qui attendra ensuite indéfiniment : l’exécution est
 réellement en file, la réponse est réellement correcte, et l’exercice n’aura
 jamais lieu. Rien ne peut vérifier depuis l’intérieur du processus qu’un worker
-existe ailleurs — un worker sur une autre machine ne laisse aucune trace avant
-de revendiquer quelque chose — donc la conception honnête est de faire dire la
+existe ailleurs (un worker sur une autre machine ne laisse aucune trace avant de
+revendiquer quelque chose), donc la conception honnête est de faire dire la
 chose à l’exploitant plutôt que de la deviner.
 
 ## Portées
@@ -134,7 +134,7 @@ c’est toute la raison pour laquelle `manage` existe comme portée distincte
 plutôt que comme marge supplémentaire dans `operate`. Déclencher un exercice et
 décider ce qu’un exercice *est* sont deux pouvoirs différents. Un jeton remis à
 un tableau de bord pour qu’il lance et annule n’a rien à faire à réécrire la
-définition de ce qu’il lance — et un jeton donné à un travail d’intégration
+définition de ce qu’il lance, et un jeton donné à un travail d’intégration
 continue pour qu’il fasse `plan apply` depuis un dépôt git n’a rien à faire à
 restaurer des sauvegardes de lui-même. Un jeton peut détenir les deux ; il doit
 le dire.
@@ -172,7 +172,7 @@ cookie est une autre manière de présenter le même identifiant, jamais une
 manière d’en détenir davantage.
 
 Le cookie est préfixé `__Host-`, `HttpOnly`, `Secure`, `SameSite=Strict`,
-`Path=/`, sans `Domain`, et `Max-Age=43200` — douze heures, absolues, jamais
+`Path=/`, sans `Domain`, et `Max-Age=43200` : douze heures, absolues, jamais
 prolongées. Une expiration glissante serait plus confortable, puisque personne
 ne serait déconnecté au milieu d’un exercice, mais un onglet resté ouvert à
 interroger une liste détiendrait alors une session indéfiniment, et celle-ci
@@ -190,8 +190,7 @@ Deux conséquences à connaître avant de déployer :
 - **Chaque écriture authentifiée par cookie doit porter un `Origin`
   correspondant.** `SameSite=Strict` arrête un autre *site*, mais pas un
   sous-domaine frère, qui est le même site pour un cookie et une origine
-  différente pour tout le reste. La référence est le `Host` de la requête
-  elle-même — le tableau de bord est servi par ce même binaire, donc l’origine
+  différente pour tout le reste. La référence est le `Host` de la requête elle-même : le tableau de bord est servi par ce même binaire, donc l’origine
   légitime est par construction celle qui vient d’être atteinte, et une valeur à
   configurer est une valeur qu’on peut se tromper à écrire. C’est pourquoi le
   proxy inverse ci-dessus doit transmettre le `Host` d’origine : un proxy qui le
@@ -205,3 +204,4 @@ Chaque route, ses paramètres, ses schémas de requête et de réponse, et la po
 qu’elle exige sont dans la [référence d’API](/api/). Le contrat lui-même est
 publié comme [`/openapi.yaml`](/openapi.yaml), pour qu’un client puisse en être
 généré.
+
