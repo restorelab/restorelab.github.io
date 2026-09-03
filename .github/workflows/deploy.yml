@@ -25,7 +25,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # `npm install`, not `npm ci`: the lockfile is written on Windows, and npm
+      # only records the optional dependency tree it resolved there. On Linux,
+      # the wasm fallbacks of Tailwind and the markdown processor hoist
+      # @emnapi/core and @emnapi/runtime to the root, where the lockfile has no
+      # entry for them — and `npm ci` refuses to install rather than resolve
+      # them. Tighten this back to `npm ci` if the lockfile is ever regenerated
+      # on Linux.
+      - run: npm install --no-audit --no-fund
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v5
