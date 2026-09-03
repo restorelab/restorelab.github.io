@@ -1,0 +1,9 @@
+# Le dépôt est écrit sous Windows et bâti sur des runners Linux : les scripts
+# comparent leur sortie régénérée au fichier committé (`sync:check`,
+# `gen:cli --check`), donc une conversion de fin de ligne au checkout ferait
+# échouer ces contrôles à tort.
+* text=auto eol=lf
+
+*.png binary
+*.webp binary
+*.ico binary
