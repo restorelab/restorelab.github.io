@@ -146,6 +146,12 @@ export const WORKLOADS = [
       {
         name: "row count",
         type: "command",
+        // The one check in the demo that looks at the data rather than at the
+        // process serving it. RestoreLab never deduces DATA - it cannot tell
+        // a query from a socket poke by reading a command line - so the plan
+        // declares it, and this workload is the only one that reaches the top
+        // of the scale.
+        proves: "data",
         message: "public.orders holds 4 812 397 rows",
       },
     ],
@@ -264,6 +270,7 @@ export function planYAML(workload) {
       `  - name: ${c.name}`,
       `    type: ${c.type}`,
       "    timeout: 60s",
+      ...(c.proves ? [`    proves: ${c.proves}`] : []),
     ]),
     `rto_target: ${Math.round(workload.rtoTargetMs / 1000)}s`,
     "cleanup:",
@@ -367,6 +374,10 @@ function buildRun({ id, workload, startedAt, rtoMS, outcome }) {
     backup: JSON.stringify(backup),
     rto_target_ms: workload.rtoTargetMs,
     err: null,
+    // Set here rather than at the end: the mid-flight branch returns before
+    // it, and a run reaching the store without this column is a bind error
+    // rather than a wrong screenshot.
+    proof_level: proofLevel(workload, outcome),
     queued_at: formatTime(new Date(startedAt.getTime() - 2000)),
     lease_owner: null,
     lease_expires_at: null,
@@ -495,6 +506,23 @@ function buildRun({ id, workload, startedAt, rtoMS, outcome }) {
       : null
 
   return run
+}
+
+/**
+ * What a demo drill established.
+ *
+ * The same rule the product applies: the highest level among the checks that
+ * actually passed. The failing drill here dies in wait_for_guest - the agent
+ * never answered - so no check ran and nothing at all was established. NONE,
+ * not BOOT: the hypervisor reporting a running process is not evidence that
+ * the OS came up.
+ *
+ * Everything else runs its checks and passes them, so it is worth the best
+ * check it has: DATA where a check declares it, SERVICE otherwise.
+ */
+function proofLevel(workload, outcome) {
+  if (outcome === "FAILED" || outcome === "RUNNING") return "NONE"
+  return workload.checks.some((c) => c.proves === "data") ? "DATA" : "SERVICE"
 }
 
 function stepMessage(name, workload, tempID, backup) {

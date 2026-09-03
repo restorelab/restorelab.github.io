@@ -146,8 +146,8 @@ async function insertHistory() {
          source_workload_id, source_name, temp_workload_id, temp_name, node,
          backup, state, result, started_at, completed_at,
          rto_ms, rto_target_ms, cleanup_done, err,
-         queued_at, lease_owner, lease_expires_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         queued_at, lease_owner, lease_expires_at, proof_level
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     const insertStep = db.prepare(
       `INSERT INTO run_steps (run_id, seq, name, state, status, started_at, completed_at, duration_ms, message, err, details)
@@ -190,6 +190,7 @@ async function insertHistory() {
         run.queued_at,
         run.lease_owner,
         run.lease_expires_at,
+        run.proof_level,
       )
       run.steps.forEach((s, seq) =>
         insertStep.run(
