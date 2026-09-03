@@ -11,7 +11,10 @@
     "sync:check": "node scripts/sync-docs.mjs --check",
     "gen:cli": "node scripts/gen-cli.mjs",
     "screenshots": "node scripts/screenshots.mjs",
-    "test": "node --test scripts/lib/*.test.mjs"
+    "test": "node --test scripts/lib/*.test.mjs",
+    "lint:api": "redocly lint spec/openapi.yaml",
+    "copy:spec": "node scripts/copy-spec.mjs",
+    "prebuild": "npm run copy:spec && npm run lint:api"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.42.0",

@@ -1,0 +1,2887 @@
+openapi: 3.1.0
+
+info:
+  title: RestoreLab API
+  version: 0.1.0
+  summary: Read the drill history, queue recovery drills, and manage recovery plans.
+  description: |
+    RestoreLab restores a backup into an isolated network, boots it, checks it
+    from inside, measures the real recovery time, and destroys what it created.
+    This API is the surface `restorelab serve` exposes, and the one the bundled
+    dashboard speaks.
+
+    **This API reads and it queues; it does not execute.** No handler restores,
+    starts, stops or deletes anything on a cluster. `POST /recovery-runs` writes
+    a row that a worker claims; the single exception is `POST /cleanup/{vmid}`,
+    which removes a temporary workload through the worker's own guarded call.
+
+    **Errors are RFC 9457 problem documents**, served as
+    `application/problem+json`. Every `type` is
+    `https://restorelab.dev/problems/<kind>`; the kind is the stable part, the
+    status is what a client acts on. There is no `422` anywhere in this API:
+    a body or a parameter that does not make sense is a `400`.
+
+    **Listings share one envelope**: `{"items": [...], "next_cursor": "..."}`.
+    `items` is never `null`, and `next_cursor` is present only when a further
+    page exists. Only `GET /recovery-runs` ever emits one.
+
+    **Almost every authenticated route can answer `503`**
+    (`history-unavailable`) on a deployment whose drill history database is
+    missing or unusable, because authenticating a token reads that database.
+    A server that has no cluster connected at all answers `503`
+    (`not-configured`) on every route but `/health` and the two `/setup` routes,
+    and it answers it *before* asking for a credential - there would be no
+    database to create one in.
+
+    Timestamps are RFC 3339 in UTC. Every duration is carried twice: a
+    `<name>_seconds` float to compare, and a `<name>` string to display.
+  license:
+    name: GNU Affero General Public License v3.0
+    identifier: AGPL-3.0-only
+
+servers:
+  - url: http://127.0.0.1:8080/api/v1
+    description: >-
+      The default bind of `restorelab serve`: loopback only, so that a
+      deployment is never exposed by accident. Serving it to a network means
+      putting TLS and a reverse proxy in front of it, and the URL changes
+      accordingly - for example `https://restorelab.example.com/api/v1`.
+
+tags:
+  - name: Health
+    description: Liveness, without a credential.
+  - name: Runs
+    description: >-
+      The drill history, the queue, and the two writes that start and stop a
+      drill.
+  - name: Workloads
+    description: >-
+      What the cluster holds, what can be restored, and how much a restore can
+      be counted on.
+  - name: Plans
+    description: >-
+      The stored catalogue of recovery plans: what to restore, where, and what
+      must be true afterwards.
+  - name: Session
+    description: >-
+      The browser credential. A dashboard exchanges a token for a cookie
+      because an `EventSource` cannot carry an `Authorization` header.
+  - name: Cluster
+    description: The configured providers and the self-diagnostic.
+  - name: Cleanup
+    description: Removing a temporary workload a drill left behind.
+  - name: Setup
+    description: >-
+      First-run provisioning. These two routes exist only on a RestoreLab that
+      has no cluster connected, and disappear for good once one is.
+
+security:
+  - bearerAuth: []
+  - sessionCookie: []
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness
+      description: >-
+        The only route that takes no credential. It says nothing about the
+        deployment - no database location, no provider name, no configuration -
+        because anyone who can reach the port can read it.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: The server is up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /setup:
+    get:
+      operationId: getSetupState
+      summary: Ask whether this RestoreLab still needs installing
+      description: |
+        **This route exists only while no cluster is connected.** `restorelab
+        serve` started without a usable configuration mounts the two setup
+        routes, `/health` and the dashboard, and nothing else; every other route
+        answers `503` (`not-configured`) because there is no database and no
+        provider to answer with. As soon as a configuration exists the setup
+        routes are **not mounted at all** - a configured server answers `404`
+        here, not `403`, because the absence of a route is a stronger guarantee
+        than a check on one.
+
+        It needs no token: somebody who opened the bare address has to be told
+        what to paste, and this answer reveals nothing a stranger could not
+        learn from seeing that the port is open. A `200` here is itself the
+        whole message.
+      tags: [Setup]
+      security: []
+      responses:
+        '200':
+          description: Nothing is configured yet; installing is possible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupState'
+        '404':
+          description: >-
+            A cluster is already connected, so this route is not mounted
+            (`no-such-route`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      operationId: runSetup
+      summary: Connect a cluster and finish installing
+      description: |
+        Provisions the least-privilege service account on the cluster, stores its
+        sealed token, optionally creates the isolated bridge, and mints the API
+        token the browser will use. Like `GET /setup`, it exists only while
+        nothing is configured.
+
+        **The credential is the one-time setup token** `serve` printed on the
+        console of the machine running it - `Authorization: Bearer rls_...`. It
+        is generated from `crypto/rand` at startup, held in the process (there is
+        no database to keep it in), and compared in constant time. Neither an API
+        token nor a session cookie is accepted here.
+
+        **When the token is spent.** The guards run in a deliberate order: the
+        transport first, because refusing a password that has already crossed the
+        network in clear is too late to matter; then the token, before the body
+        is parsed, because a caller with no token has no business having its JSON
+        read; then the body; and only then is the token spent - atomically, so
+        two requests arriving together cannot both provision. So **a refused body
+        does not cost the token**: a form that forgot a storage can simply be
+        sent again. From the moment provisioning starts the token is spent
+        whatever happens, including a wrong administrator password - a token
+        still live after a failed attempt would be a secret printed on a console
+        and valid until the process ends. Recovering from that means restarting
+        `serve` for a new token.
+
+        **The transport.** The same rule `POST /session` applies, through the
+        same function: without TLS, without `X-Forwarded-Proto: https`, and to
+        anything but a loopback `Host`, the request is refused `400` naming TLS -
+        an administrator password does not travel in clear to another host.
+
+        The administrator password is used in memory to create the service
+        account and is never stored, never logged and never echoed back.
+
+        **On success the server restarts.** The setup server hands the port over:
+        `serve` tears it down and opens the real RestoreLab on the same address.
+        Expect the connection to drop briefly, then log in with the token this
+        response returned.
+      tags: [Setup]
+      security:
+        - setupToken: []
+      requestBody:
+        required: true
+        description: What the wizard collected, capped at 64 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetupRequest'
+      responses:
+        '200':
+          description: >-
+            The cluster is connected. The body carries the steps performed, and -
+            exactly once, never readable again - the API token to log in with.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupResult'
+        '400':
+          description: >-
+            The transport would carry an administrator password in clear, the
+            body is not the JSON this endpoint expects, or it lists no storage -
+            and a drill has nowhere to restore its clone without one
+            (`invalid-parameter`). None of these spends the setup token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: >-
+            No setup token, the wrong one, or one already spent
+            (`unauthorized`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: >-
+            A cluster is already connected, so this route is not mounted
+            (`no-such-route`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '502':
+          description: >-
+            Provisioning reached the cluster and failed (`setup-failed`). The
+            problem document carries the steps performed so far, so a caller can
+            show how far it got; every step is idempotent, so fixing the cause and
+            running it again is safe - but the setup token is spent, so that means
+            restarting `serve` first.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/SetupFailure'
+
+  /recovery-runs:
+    get:
+      operationId: listRecoveryRuns
+      summary: List recovery drills
+      description: >-
+        The drill history, newest first. This is the one listing in the API that
+        pages: when more rows exist, `next_cursor` carries an opaque position to
+        hand back as `cursor`.
+      tags: [Runs]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/WorkloadFilter'
+        - name: state
+          in: query
+          required: false
+          description: >-
+            Keep only drills in this lifecycle state. Matched case-insensitively
+            against the uppercase state names.
+          schema:
+            $ref: '#/components/schemas/RunState'
+        - name: result
+          in: query
+          required: false
+          description: >-
+            Keep only drills with this verdict. Matched case-insensitively. A
+            drill still running, or one that was cancelled, carries no result and
+            is never matched by this filter.
+          schema:
+            $ref: '#/components/schemas/RunResult'
+        - $ref: '#/components/parameters/Since'
+      responses:
+        '200':
+          description: A page of drills.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A page of drill summaries.
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    description: The drills on this page, newest first.
+                    items:
+                      $ref: '#/components/schemas/RunSummary'
+                  next_cursor:
+                    type: string
+                    description: >-
+                      Opaque position of the last row on this page. Present only
+                      when a further page exists; hand it back as `cursor`.
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+    post:
+      operationId: triggerRecoveryRun
+      summary: Queue a recovery drill
+      description: |
+        Queues a drill and returns immediately. Nothing is restored, started or
+        deleted by this call: it validates the plan, writes one row, and a worker
+        claims it.
+
+        A request either **names a stored plan** (`plan`) or **describes the
+        drill in place** (`workload_id` and the ad-hoc fields). Mixing the two is
+        a `400` that names the keys to drop, because "what does this plan do"
+        must have one answer.
+
+        Requires the `operate` scope. When the request is authenticated by
+        session cookie it must also carry an `Origin` header matching the `Host`
+        it was sent to, or it is refused as cross-origin.
+      tags: [Runs]
+      requestBody:
+        required: true
+        description: >-
+          The drill to queue, capped at 64 KiB. A plan by name, or a description
+          in place.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerRequest'
+      responses:
+        '201':
+          description: >-
+            The drill is queued. `Location` names the run, whose state is
+            `QUEUED` and whose `started_at` is the moment it was queued.
+          headers:
+            Location:
+              description: The URL of the queued drill.
+              schema:
+                type: string
+                examples: ['/api/v1/recovery-runs/9d7f1f2e-0c4a-4a4f-9a2b-6f5d3c1b0e77']
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunSummary'
+        '400':
+          description: >-
+            The body is not JSON, mixes a named plan with an ad-hoc description,
+            omits `workload_id` on the ad-hoc path, carries an unreadable
+            `rto_target`, or names a stored plan whose document no longer
+            parses (`invalid-plan`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: >-
+            The token does not hold the `operate` scope
+            (`insufficient-scope`), or a cookie-authenticated request came from
+            another origin (`cross-origin`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No stored plan matches `plan` (`not-found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: >-
+            The named plan reference matches several plans (`ambiguous-id`), or
+            this workload already has a drill queued or running
+            (`already-running`) - one drill per workload at a time, so a
+            double-clicked dashboard cannot restore the same backup twice.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /recovery-runs/{id}:
+    get:
+      operationId: getRecoveryRun
+      summary: Read one drill
+      description: >-
+        The full report document for a drill, steps and checks included. It is
+        the same schema `restorelab recovery test --format json` writes to a
+        file and `/report?format=json` returns: one run, one wire shape,
+        wherever it is read from.
+      tags: [Runs]
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: The drill.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '409':
+          $ref: '#/components/responses/AmbiguousRunId'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /recovery-runs/{id}/events:
+    get:
+      operationId: listRecoveryRunEvents
+      summary: Follow a drill's progress
+      description: |
+        One endpoint, two representations, chosen by `Accept`.
+
+        **Server-sent events.** When `Accept` contains `text/event-stream`, the
+        response is a live stream: `event: progress` frames whose `data` is a
+        single event object and whose `id` is its `seq`, a `event: done` frame
+        carrying the terminal state when the drill ends, and a
+        `event: disconnected` frame when the server is shutting down while the
+        drill is not - reconnect and resume. A `: heartbeat` comment every
+        fifteen seconds keeps a reverse proxy from timing the stream out.
+        Reconnecting with `Last-Event-ID` replays exactly what was missed.
+
+        **JSON.** Otherwise the response is the whole event list in the standard
+        envelope, resumable with `after`. It never carries a `next_cursor`.
+      tags: [Runs]
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: after
+          in: query
+          required: false
+          description: >-
+            Return only events after this sequence number. Ignored by the
+            event-stream representation, which resumes on `Last-Event-ID`
+            instead.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+          example: 42
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: >-
+            The `id` of the last frame a dropped stream received. The stream
+            resumes just after it. Browsers send this on their own when an
+            `EventSource` reconnects.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: >-
+            Either the event list, or the open stream when `text/event-stream`
+            was asked for.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Every recorded event of this drill, oldest first.
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    description: The events, in sequence order.
+                    items:
+                      $ref: '#/components/schemas/RunEvent'
+            text/event-stream:
+              schema:
+                type: string
+                description: >-
+                  An SSE frame sequence. `progress` frames carry a `RunEvent` as
+                  their data, `done` carries `{"state":"SUCCESS"}`, and
+                  `disconnected` carries the last known state plus a reason.
+                examples:
+                  - |
+                    id: 7
+                    event: progress
+                    data: {"seq":7,"at":"2026-08-14T09:12:31Z","state":"RUNNING_CHECKS","step":"checks","status":"running"}
+
+                    event: done
+                    data: {"state":"SUCCESS"}
+        '400':
+          description: >-
+            `after` is not a sequence number, or is negative
+            (`invalid-parameter`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '409':
+          $ref: '#/components/responses/AmbiguousRunId'
+        '500':
+          description: >-
+            An internal failure (`internal`), or a server that cannot flush a
+            response and therefore cannot stream (`streaming-unsupported`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /recovery-runs/{id}/report:
+    get:
+      operationId: getRecoveryRunReport
+      summary: Render a drill's report
+      description: >-
+        The drill's report as the stable JSON document, or as a self-contained
+        HTML page to hand to somebody who was not watching. The format is
+        validated before the run is resolved, so a bad `format` is a `400` even
+        when the id names nothing.
+      tags: [Runs]
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: format
+          in: query
+          required: false
+          description: The rendering to return. Defaults to `json`.
+          schema:
+            type: string
+            enum: [json, html]
+            default: json
+      responses:
+        '200':
+          description: The report, in the requested rendering.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDocument'
+            text/html:
+              schema:
+                type: string
+                description: A standalone HTML report page.
+        '400':
+          description: '`format` is neither `json` nor `html` (`invalid-parameter`).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '409':
+          $ref: '#/components/responses/AmbiguousRunId'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /recovery-runs/{id}/cancel:
+    post:
+      operationId: cancelRecoveryRun
+      summary: Cancel a drill
+      description: |
+        Asks a drill to stop. The body is the same run summary in both cases;
+        the **status code** is what says what happened.
+
+        `200` - the drill was still queued, nothing had been created anywhere,
+        and it is over. `202` - a worker is executing it and has been told; it
+        will tear the temporary workload down on its way out, so the drill is
+        not over yet. A caller that read `200` here would report a machine gone
+        that still exists.
+
+        Requires the `operate` scope, and a matching `Origin` when the request
+        is authenticated by session cookie.
+      tags: [Runs]
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: The drill was queued and is now over.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunSummary'
+        '202':
+          description: >-
+            A worker holds the drill and has been asked to stop; teardown is
+            still to come.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: >-
+            The token does not hold the `operate` scope
+            (`insufficient-scope`), or a cookie-authenticated request came from
+            another origin (`cross-origin`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '409':
+          description: >-
+            The id prefix matches several drills (`ambiguous-id`), or the drill
+            has already finished and there is nothing left to cancel
+            (`already-settled`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /queue:
+    get:
+      operationId: listQueue
+      summary: List drills that have not settled
+      description: >-
+        What is waiting and what is running - the same rows `/recovery-runs`
+        serves, filtered to the states that have not settled, plus the lease
+        that says which worker holds each one. It never carries a
+        `next_cursor`. A lease that cannot be read leaves the entry without a
+        worker rather than failing the listing: this is the screen an operator
+        looks at when something has gone wrong, and it has to render then.
+      tags: [Runs]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: The drills in flight.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Queued and running drills, with their leases.
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    description: The unsettled drills.
+                    items:
+                      $ref: '#/components/schemas/QueueEntry'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /workloads:
+    get:
+      operationId: listWorkloads
+      summary: List the cluster's workloads
+      description: >-
+        Queries the cluster on every call, with no cache. Templates are always
+        excluded. Workloads RestoreLab created for a drill are excluded too
+        unless `temporary=true`. Each row carries its most recent drill when the
+        history could be read; when it could not, the last-drill fields are
+        simply absent, which reads as "never tested" - the honest answer when
+        the history is unreachable.
+      tags: [Workloads]
+      parameters:
+        - $ref: '#/components/parameters/ProviderQuery'
+        - name: temporary
+          in: query
+          required: false
+          description: >-
+            Include the temporary workloads RestoreLab manages. Only the exact
+            value `true` includes them; anything else, including `1` and `yes`,
+            leaves them out.
+          schema:
+            type: string
+            enum: ['true']
+      responses:
+        '200':
+          description: The cluster's workloads.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Every workload the provider reported, filtered.
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    description: The workloads.
+                    items:
+                      $ref: '#/components/schemas/Workload'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NoSuchProvider'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/UpstreamFailure'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+        '504':
+          $ref: '#/components/responses/UpstreamTimeout'
+
+  /workloads/{id}:
+    get:
+      operationId: getWorkload
+      summary: Describe one workload
+      description: >-
+        The workload itself, not wrapped in a listing envelope. This is the only
+        route that fills in `status`: the live power state, uptime, addresses and
+        usage read from the provider. A stopped workload has no agent to ask, so
+        an unreadable status leaves the field out rather than turning a
+        description into an error.
+      tags: [Workloads]
+      parameters:
+        - $ref: '#/components/parameters/WorkloadId'
+        - $ref: '#/components/parameters/ProviderQuery'
+      responses:
+        '200':
+          description: The workload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workload'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: >-
+            No provider carries that id (`no-such-provider`), or the provider
+            knows no such workload (`not-found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/UpstreamFailure'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+        '504':
+          $ref: '#/components/responses/UpstreamTimeout'
+
+  /workloads/{id}/backups:
+    get:
+      operationId: listWorkloadBackups
+      summary: List a workload's backups
+      description: >-
+        What could be restored for this workload, newest first, each aged against
+        the server's own clock. Having no backup at all is not an error: the
+        workload exists, and "you have nothing to restore" is the answer, not the
+        absence of one - so the list comes back empty.
+      tags: [Workloads]
+      parameters:
+        - $ref: '#/components/parameters/WorkloadId'
+        - $ref: '#/components/parameters/ProviderQuery'
+      responses:
+        '200':
+          description: The workload's backups, possibly none.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A backup listing.
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    description: The restorable points in time.
+                    items:
+                      $ref: '#/components/schemas/Backup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NoSuchProvider'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/UpstreamFailure'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+        '504':
+          $ref: '#/components/responses/UpstreamTimeout'
+
+  /workloads/{id}/confidence:
+    get:
+      operationId: getWorkloadConfidence
+      summary: Score how much a restore can be counted on
+      description: >-
+        The question the tool exists for. The score reads the workload's twenty
+        most recent drills and the age of its latest backup, and comes back as an
+        integer from 0 to 100 with the reasons that produced it. There are no
+        letter grades. A workload that has never been drilled scores `null`, not
+        zero: "we have no idea" and "we know it is bad" are different answers.
+        The backup lookup is best-effort - an unreachable cluster costs the "no
+        backup" penalty and says so in the reasons rather than refusing to
+        answer.
+      tags: [Workloads]
+      parameters:
+        - $ref: '#/components/parameters/WorkloadId'
+        - $ref: '#/components/parameters/ProviderQuery'
+      responses:
+        '200':
+          description: The confidence score.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Confidence'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /session:
+    post:
+      operationId: createSession
+      summary: Exchange a token for a browser session
+      description: |
+        The one route that authenticates nothing beforehand: it is what creates
+        the credential every other route checks. A dashboard needs it because an
+        `EventSource` cannot carry an `Authorization` header.
+
+        The response is `200`, not `201`: a session has no URL that identifies
+        *this* session rather than whoever's cookie arrives, so there is nothing
+        to put in a `Location` and nothing a client could hand to somebody else.
+
+        The cookie is `__Host-restorelab_session`, `HttpOnly`, `Secure`,
+        `SameSite=Strict`, `Path=/`, and it lasts **twelve hours from the moment
+        it is issued, never extended**. A sliding expiry would mean an open tab
+        polling a listing holds a session forever, and this one can destroy
+        machines.
+
+        Because the cookie is `Secure`, a browser would silently drop it over
+        plain HTTP - the login would appear to succeed and every request
+        afterwards would be anonymous. Rather than let that happen, the request
+        is refused with a `400` unless it arrives over TLS, carries
+        `X-Forwarded-Proto: https`, or was sent to a loopback `Host`.
+      tags: [Session]
+      security: []
+      requestBody:
+        required: true
+        description: The API token to exchange, capped at 4 KiB.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A login body.
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: An API token secret, as `restorelab token create` printed it.
+                  pattern: '^rl_[A-Za-z0-9_-]{43}$'
+                  examples: ['rl_EXAMPLE_TOKEN_NOT_A_REAL_SECRET_0123456789']
+      responses:
+        '200':
+          description: The session is open, and the cookie is set.
+          headers:
+            Set-Cookie:
+              description: >-
+                The session cookie:
+                `__Host-restorelab_session=rls_...; Path=/; Max-Age=43200;
+                HttpOnly; Secure; SameSite=Strict`.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          description: >-
+            The transport would not carry a `Secure` cookie back, or the body is
+            not `{"token":"rl_..."}` (`invalid-parameter`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: >-
+            The token is unknown or has been revoked (`unauthorized`). Every
+            failed authentication answers with the same words, on purpose:
+            telling "malformed" from "unknown" would confirm to a guesser that
+            the shape of the guess was right.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+    get:
+      operationId: getSession
+      summary: Describe the current session
+      description: >-
+        What a dashboard calls on load to choose between its login screen and its
+        application, and to learn which actions to offer at all. It describes a
+        cookie: a request authenticated with a bearer token has no session to
+        describe and is answered `400`.
+      tags: [Session]
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: The session behind this cookie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          description: >-
+            The request was authenticated with an `Authorization` header rather
+            than a cookie, so there is no session to describe
+            (`invalid-parameter`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+    delete:
+      operationId: deleteSession
+      summary: Log out
+      description: >-
+        Deletes the session and expires the cookie. Idempotent: logging out twice
+        is not a failure, and the expiring cookie is sent whatever happened, so a
+        browser holding a cookie for a row that is gone stops sending it. A
+        cookie-authenticated request must carry an `Origin` matching its `Host`.
+      tags: [Session]
+      responses:
+        '204':
+          description: The session is gone. No body.
+          headers:
+            Set-Cookie:
+              description: >-
+                The expiring cookie:
+                `__Host-restorelab_session=; Path=/; Max-Age=0; HttpOnly;
+                Secure; SameSite=Strict`.
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CrossOrigin'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /plans:
+    get:
+      operationId: listPlans
+      summary: List the recovery plans
+      description: >-
+        The catalogue, ordered by name. It reuses the listing envelope so a
+        client never meets two shapes, but it never carries a `next_cursor` and
+        takes no `cursor`: the catalogue is dozens of rows on a stable ordering,
+        and a keyset over that would be ceremony. Rows come back **without**
+        their `yaml`, because drawing a table must not ship fifty documents.
+      tags: [Plans]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/WorkloadFilter'
+      responses:
+        '200':
+          description: The catalogue.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A page of stored plans, without their documents.
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    description: The plans, ordered by name.
+                    items:
+                      $ref: '#/components/schemas/Plan'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+    post:
+      operationId: createPlan
+      summary: Store a new plan
+      description: |
+        The body is the plan **document itself**, not an envelope around it.
+        YAML is read with a parser that also accepts JSON, so a dashboard can
+        post either without this project inventing a second schema for the same
+        thing. It is capped at 64 KiB.
+
+        Creating means creating: a `POST` onto a name that already exists is a
+        conflict, never a silent replacement of somebody else's plan.
+
+        Requires the `manage` scope, which no other scope implies - deciding what
+        a drill is and launching one are two different powers. A
+        cookie-authenticated request must carry a matching `Origin`.
+      tags: [Plans]
+      requestBody:
+        required: true
+        description: The recovery plan document, in YAML (or JSON).
+        content:
+          application/yaml:
+            schema:
+              $ref: '#/components/schemas/PlanDocument'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanDocument'
+      responses:
+        '201':
+          description: The plan is stored, at version 1.
+          headers:
+            Location:
+              description: The URL of the stored plan.
+              schema:
+                type: string
+                examples: ['/api/v1/plans/1f0a5b3c-2d4e-4f60-8a91-7c3b2e5d0146']
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+        '400':
+          description: >-
+            The body is empty or unreadable (`invalid-parameter`), or it is not a
+            valid recovery plan (`invalid-plan`) - the detail names the field.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenManage'
+        '409':
+          description: Another plan already carries that name (`name-taken`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /plans/validate:
+    post:
+      operationId: validatePlan
+      summary: Check a plan document without storing it
+      description: >-
+        Reports what a document means, and stores nothing. It exists for the
+        dashboard's plan editor, which is exactly the thing `manage` names - so
+        it needs that scope even though it writes nothing. The body is the raw
+        document, capped at 64 KiB. The answer carries the plan normalised: the
+        same document with every default applied, which is how an editor shows
+        the difference between a field left out and a field left out *meaning
+        something*.
+      tags: [Plans]
+      requestBody:
+        required: true
+        description: The recovery plan document to check, in YAML (or JSON).
+        content:
+          application/yaml:
+            schema:
+              $ref: '#/components/schemas/PlanDocument'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanDocument'
+      responses:
+        '200':
+          description: The document is a valid plan; here is what it says.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidatedPlan'
+        '400':
+          description: >-
+            The body is empty or unreadable (`invalid-parameter`), or it is not a
+            valid recovery plan (`invalid-plan`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenManage'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /plans/{ref}:
+    get:
+      operationId: getPlan
+      summary: Read one plan
+      description: >-
+        The stored plan, with its `yaml` - a round trip through this API is
+        lossless, comments included. `format=yaml` returns the document alone,
+        as `application/yaml`, so `restorelab plan show` and a plain `curl` can
+        write a file straight from the response instead of pulling one string
+        out of a JSON object and unescaping it.
+      tags: [Plans]
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - name: format
+          in: query
+          required: false
+          description: >-
+            Only the exact value `yaml` changes anything: it returns the raw
+            document instead of the JSON object. Any other value, including a
+            misspelling, returns the JSON object.
+          schema:
+            type: string
+            enum: [yaml]
+      responses:
+        '200':
+          description: The plan, as JSON or as the document itself.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+            application/yaml:
+              schema:
+                $ref: '#/components/schemas/PlanDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PlanNotFound'
+        '409':
+          $ref: '#/components/responses/AmbiguousPlanId'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+    put:
+      operationId: updatePlan
+      summary: Replace a plan
+      description: |
+        Replaces the document and bumps the plan's version. The plan is resolved
+        before the body is read, so a reference that names nothing is a `404`
+        about the URL rather than a complaint about the document.
+
+        A `PUT` that renames the plan is refused: it would leave the old name
+        behind as a second row, which is a rename nobody asked for. Renaming is
+        deleting one plan and creating another, and that is worth saying out
+        loud.
+
+        Requires the `manage` scope, and a matching `Origin` when authenticated
+        by cookie.
+      tags: [Plans]
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - name: version
+          in: query
+          required: false
+          description: >-
+            The version you expect this plan to be at. Omitting it overwrites
+            whatever is there, which is what a `plan apply` from a pipeline
+            means. Present and not a positive integer is refused rather than
+            ignored: a guard that silently does nothing is worse than no guard.
+          schema:
+            type: integer
+            minimum: 1
+          example: 3
+      requestBody:
+        required: true
+        description: The replacement plan document, in YAML (or JSON), capped at 64 KiB.
+        content:
+          application/yaml:
+            schema:
+              $ref: '#/components/schemas/PlanDocument'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanDocument'
+      responses:
+        '200':
+          description: The plan is replaced, and its version is one higher.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+        '400':
+          description: >-
+            `version` is not a positive integer, or the body is empty or
+            unreadable (`invalid-parameter`), or it is not a valid recovery plan
+            (`invalid-plan`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenManage'
+        '404':
+          $ref: '#/components/responses/PlanNotFound'
+        '409':
+          description: >-
+            The reference matches several plans (`ambiguous-id`), the document
+            names a different plan (`rename-not-supported`), the plan has moved
+            on since you read it (`version-conflict`), or the new name is
+            already taken (`name-taken`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+    delete:
+      operationId: deletePlan
+      summary: Delete a plan
+      description: >-
+        Removes the plan. No condition, and none needed: a drill in flight
+        executes the snapshot taken when it was queued, never the catalogue row,
+        so deleting a plan cannot disturb an execution or rewrite a report. Past
+        runs keep the plan's name and their snapshot of it. Requires the `manage`
+        scope, and a matching `Origin` when authenticated by cookie.
+      tags: [Plans]
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+      responses:
+        '204':
+          description: The plan is gone. No body.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenManage'
+        '404':
+          $ref: '#/components/responses/PlanNotFound'
+        '409':
+          $ref: '#/components/responses/AmbiguousPlanId'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /providers:
+    get:
+      operationId: listProviders
+      summary: List the configured providers
+      description: >-
+        What this RestoreLab is connected to. What it leaves out is the point:
+        no sealed secret, and no token id either - a token id is half a
+        credential, and the API has no use for it worth the risk of a dashboard
+        logging it.
+      tags: [Cluster]
+      responses:
+        '200':
+          description: The configured providers.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A provider listing.
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    description: The providers, secrets removed.
+                    items:
+                      $ref: '#/components/schemas/Provider'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /doctor:
+    get:
+      operationId: getDoctorReport
+      summary: Run the self-diagnostic
+      description: >-
+        Checks credentials, nodes, storage, the isolated network profile, the
+        drill history, and optionally one workload. It answers `200` with its
+        findings even when the verdict is bad: a misconfigured cluster is exactly
+        what this endpoint is for, and a `502` would make a dashboard draw an
+        outage banner over a diagnostic that worked perfectly. A missing backup
+        provider is a finding, not a refusal. The only way it does not answer
+        `200` is when the *hypervisor* provider cannot be resolved at all, since
+        there is then nothing to diagnose.
+      tags: [Cluster]
+      parameters:
+        - $ref: '#/components/parameters/ProviderQuery'
+        - name: workload
+          in: query
+          required: false
+          description: >-
+            Also check that this workload can be read, that its status is
+            available, and that it has a usable backup.
+          schema:
+            type: string
+          example: '101'
+      responses:
+        '200':
+          description: The diagnostic, however good or bad it is.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NoSuchProvider'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+
+  /cleanup/{vmid}:
+    post:
+      operationId: cleanupWorkload
+      summary: Destroy a temporary workload
+      description: |
+        The one endpoint that ends in a destructive call, and it makes that call
+        through the worker's own guarded path, so the only package holding a
+        mutating provider call stays the one carrying the tests for it.
+
+        The id must be an integer inside the reserved range RestoreLab creates
+        temporary workloads in - `9000-9999` unless the provider configures
+        otherwise - and that is checked **before a provider is even looked up**,
+        so a mistyped production id is a `400` rather than a question asked of
+        the cluster. The provider refuses again, independently, before it deletes
+        anything.
+
+        Requires the `operate` scope, and a matching `Origin` when authenticated
+        by cookie.
+      tags: [Cleanup]
+      parameters:
+        - name: vmid
+          in: path
+          required: true
+          description: >-
+            The temporary workload's id. An integer inside the provider's
+            reserved range.
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+          example: '9001'
+      responses:
+        '200':
+          description: The temporary workload is gone.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupResult'
+        '400':
+          description: >-
+            The id is not an integer, or falls outside the reserved range - so it
+            is not one of RestoreLab's (`invalid-parameter`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: >-
+            The token does not hold the `operate` scope
+            (`insufficient-scope`), or a cookie-authenticated request came from
+            another origin (`cross-origin`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: >-
+            The provider knows no such workload (`not-found`). The workload may
+            already have been cleaned up.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '502':
+          $ref: '#/components/responses/UpstreamFailure'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+        '504':
+          $ref: '#/components/responses/UpstreamTimeout'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        An API token minted by `restorelab token create <name>`, sent as
+        `Authorization: Bearer rl_<43 base64url characters>`. The `rl_` prefix is
+        there so a secret pasted into a log or a ticket is recognisable as one,
+        and can be revoked rather than puzzled over. Only its SHA-256 is stored,
+        so a leaked database yields no usable token.
+
+        Every token holds `read` implicitly. `operate` (queue and cancel drills,
+        clean up) and `manage` (write the plan catalogue) are granted at creation
+        with `--operate` and `--manage`. **Neither implies the other, and neither
+        is implied by anything**: a missing scope is a `403`
+        (`insufficient-scope`), never a `401`.
+
+        When the `Authorization` header is present it always decides, even
+        alongside a cookie: a CLI's credential is never quietly overridden by a
+        browser's. A bearer request is never subject to the cross-origin guard.
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-restorelab_session
+      description: |
+        The dashboard's credential, obtained from `POST /session`. Its value is
+        prefixed `rls_`, and it lives **twelve hours from the moment it was
+        issued and is never extended**.
+
+        The `__Host-` prefix is not decoration: a browser refuses to store such a
+        cookie unless it is `Secure`, scoped to `Path=/`, and names no `Domain` -
+        three properties the client itself enforces, which no bug on this side
+        can weaken and no sibling subdomain can work around. It is also
+        `HttpOnly` and `SameSite=Strict`.
+
+        **Cross-origin guard.** On any request that is authenticated by this
+        cookie and uses a method other than `GET`, `HEAD` or `OPTIONS`, the
+        `Origin` header must be present and its host must equal the request's
+        `Host`; otherwise the request is refused `403` (`cross-origin`).
+        `SameSite=Strict` already blocks another site, but not a sibling
+        subdomain, which is the same site to a cookie and a different origin to
+        everything else. The deployment corollary: a reverse proxy that does not
+        pass the original `Host` makes every dashboard write a `403`.
+
+        Revoking the underlying token cuts every session opened from it.
+    setupToken:
+      type: http
+      scheme: bearer
+      bearerFormat: rls_<43 base64url characters>
+      description: |
+        The one-time first-run token, and the credential of `POST /setup` alone.
+        It is not an API token and not a session: `restorelab serve` mints it
+        from `crypto/rand` when it finds no configuration, prints it once on the
+        console of the machine it runs on, keeps it in the process, and compares
+        it in constant time. The person installing is the one sitting at that
+        console; nobody else is.
+
+        It is spent by the first request that gets as far as touching the
+        cluster, and never accepted again - see `POST /setup` for exactly which
+        refusals cost it and which do not. A new one means restarting `serve`.
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: >-
+        How many rows to return. Defaults to 50. A larger value is honoured up to
+        200 rather than refused - the client gets a smaller page and, where the
+        listing pages, a cursor. Zero or negative is refused, because it means
+        the caller computed it and got it wrong.
+      schema:
+        type: integer
+        minimum: 1
+        default: 50
+      example: 100
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: >-
+        An opaque base64url position, taken verbatim from a previous response's
+        `next_cursor`. Treat it as a token to hand back: what it encodes may
+        change.
+      schema:
+        type: string
+      example: MjAyNi0wOC0xNFQwOToxMjozMS4wMDAwMDAwMDBafDlkN2YxZjJl
+    Since:
+      name: since
+      in: query
+      required: false
+      description: >-
+        Keep only drills started at or after this point. Accepts a day count
+        (`30d`), a duration (`12h`), a date (`2026-08-01`), or a full RFC 3339
+        instant. Anything else is refused rather than guessed at: a listing
+        silently covering the wrong window is worse than an error.
+      schema:
+        type: string
+      example: 30d
+    WorkloadFilter:
+      name: workload
+      in: query
+      required: false
+      description: Keep only rows about this workload id.
+      schema:
+        type: string
+      example: '101'
+    ProviderQuery:
+      name: provider
+      in: query
+      required: false
+      description: >-
+        Which configured provider to ask. Omitted means the configured default.
+        A named provider that does not exist is a `404`; having none usable at
+        all is a `503`.
+      schema:
+        type: string
+      example: proxmox-main
+    RunId:
+      name: id
+      in: path
+      required: true
+      description: >-
+        The drill's id, or a unique prefix of it - exactly as `restorelab runs
+        show` accepts one. An exact match wins; a prefix matching several drills
+        is a `409` rather than a guess.
+      schema:
+        type: string
+      example: 9d7f1f2e
+    WorkloadId:
+      name: id
+      in: path
+      required: true
+      description: The workload's provider-scoped id.
+      schema:
+        type: string
+      example: '101'
+    PlanRef:
+      name: ref
+      in: path
+      required: true
+      description: >-
+        A plan's exact name, its exact id, or a unique prefix of its id. A prefix
+        matching several plans is a `409`.
+      schema:
+        type: string
+      example: postgres-prod
+
+  responses:
+    InvalidParameter:
+      description: A query parameter could not be read (`invalid-parameter`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: >-
+        No usable credential: the request carried no token or cookie, or the one
+        it carried is unknown, revoked or expired (`unauthorized`). Every failed
+        authentication answers with the same words, so that no reply confirms to
+        a guesser that the shape of the guess was right.
+      headers:
+        WWW-Authenticate:
+          description: 'Always `Bearer realm="restorelab"`.'
+          schema:
+            type: string
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    CrossOrigin:
+      description: >-
+        A cookie-authenticated write carried no `Origin`, or one whose host does
+        not match the request's `Host` (`cross-origin`). An API client should
+        send `Authorization: Bearer rl_...` instead.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ForbiddenManage:
+      description: >-
+        The token does not hold the **`manage`** scope
+        (`insufficient-scope`) - create one with `restorelab token create <name>
+        --manage`. A cookie-authenticated request from another origin is also
+        refused here (`cross-origin`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RunNotFound:
+      description: No recorded drill matches that id or prefix (`not-found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PlanNotFound:
+      description: No stored plan matches that name, id or prefix (`not-found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    AmbiguousRunId:
+      description: >-
+        That prefix matches more than one drill (`ambiguous-id`): give a few more
+        characters.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    AmbiguousPlanId:
+      description: >-
+        That prefix matches more than one plan (`ambiguous-id`): give a few more
+        characters, or use the name.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NoSuchProvider:
+      description: >-
+        The `provider` query named a provider this deployment does not have, or
+        cannot use for this operation (`no-such-provider`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProviderUnavailable:
+      description: >-
+        No provider is configured or usable for this operation
+        (`provider-unavailable`). This is the deployment's problem, not the
+        caller's.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UpstreamFailure:
+      description: >-
+        The cluster could not be queried (`upstream-failure`), or it refused
+        RestoreLab's own provider credentials (`upstream-rejected`). Neither is a
+        problem with your API token; run `restorelab doctor`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UpstreamTimeout:
+      description: The cluster did not answer in time (`upstream-timeout`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    HistoryUnavailable:
+      description: >-
+        This RestoreLab has no usable drill history database
+        (`history-unavailable`), so it cannot even resolve the credential this
+        request carried. Check `restorelab db status`. Nearly every
+        authenticated route can answer this.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: An unrecognised failure inside RestoreLab (`internal`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    Problem:
+      type: object
+      description: >-
+        An RFC 9457 problem document. Every error this API emits is one of these,
+        served as `application/problem+json`. Details are scrubbed of anything
+        that looks like a credential before they leave the process.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: >-
+            `https://restorelab.dev/problems/<kind>`. The URI need not resolve;
+            the kind is the stable, machine-readable part.
+          examples:
+            - https://restorelab.dev/problems/already-running
+            - https://restorelab.dev/problems/history-unavailable
+        title:
+          type: string
+          description: A short, human-readable summary of the kind.
+          examples: ['This workload already has a drill in flight']
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status, repeated here as RFC 9457 asks.
+          examples: [409]
+        detail:
+          type: string
+          description: >-
+            What went wrong this time, and often what to do about it. Absent when
+            the title says everything.
+        instance:
+          type: string
+          description: The path of the request that produced this problem.
+          examples: ['/api/v1/recovery-runs']
+
+    Health:
+      type: object
+      description: The liveness answer. It describes the binary, not the deployment.
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          description: Always `ok`; a server that is not up answers nothing at all.
+          enum: [ok]
+        version:
+          type: string
+          description: The one-line version banner of the running binary.
+          examples: ['restorelab v0.1.0 (4c1f9ab27de3) linux/amd64 go1.27.0']
+
+    RunState:
+      type: string
+      description: >-
+        A drill's lifecycle state. `SUCCESS`, `FAILED`, `CANCELLED` and
+        `CLEANUP_FAILED` are terminal; the rest are not.
+      enum:
+        - QUEUED
+        - DISCOVERING_BACKUP
+        - PREPARING_ENVIRONMENT
+        - RESTORING
+        - STARTING
+        - WAITING_FOR_GUEST
+        - RUNNING_CHECKS
+        - GENERATING_REPORT
+        - CLEANING_UP
+        - SUCCESS
+        - FAILED
+        - CANCELLED
+        - CLEANUP_FAILED
+      examples: [RUNNING_CHECKS]
+
+    RunResult:
+      type: string
+      description: >-
+        A drill's verdict. `DEGRADED` means it recovered but a non-critical check
+        failed or the RTO target was exceeded. The empty string means there is no
+        verdict yet - the drill is still going, or it was cancelled.
+      enum:
+        - SUCCESS
+        - DEGRADED
+        - FAILED
+        - ''
+      examples: [SUCCESS]
+
+    RunSummary:
+      type: object
+      description: >-
+        One row of the drill history: enough to draw a table, without the steps,
+        checks and events a full report carries. It is also what the two write
+        routes answer with, so a write replies in the shape a read already
+        speaks.
+      required:
+        - id
+        - plan_name
+        - source_workload_id
+        - state
+        - started_at
+        - completed_at
+        - rto_seconds
+        - rto
+        - rto_exceeded
+        - cleanup_done
+      properties:
+        id:
+          type: string
+          description: The drill's id.
+          examples: ['9d7f1f2e-0c4a-4a4f-9a2b-6f5d3c1b0e77']
+        plan_name:
+          type: string
+          description: The name of the plan that ran, stored or ad-hoc.
+          examples: [postgres-prod]
+        plan_id:
+          type: string
+          description: >-
+            The stored plan this drill came from. Absent for a drill described in
+            the request, and absent once that plan is deleted - the run keeps its
+            name and its snapshot either way.
+        source_workload_id:
+          type: string
+          description: The production workload that was drilled.
+          examples: ['101']
+        source_name:
+          type: string
+          description: That workload's name at the time, when it was known.
+          examples: [postgres-prod]
+        state:
+          $ref: '#/components/schemas/RunState'
+        result:
+          $ref: '#/components/schemas/RunResult'
+        started_at:
+          type: string
+          format: date-time
+          description: When the drill started, or was queued if it has not started yet.
+        completed_at:
+          type: [string, 'null']
+          format: date-time
+          description: >-
+            When the drill finished, or `null` while it is still going. Always
+            present as a key: the zero instant would read as "completed in 1970".
+        rto_seconds:
+          type: number
+          format: double
+          description: The measured recovery time, in seconds.
+          examples: [137.4]
+        rto:
+          type: string
+          description: The same recovery time, formatted for display.
+          examples: [2m17s]
+        rto_target_seconds:
+          type: number
+          format: double
+          description: What the plan asked for, in seconds. Absent when the plan set no target.
+          examples: [300]
+        rto_exceeded:
+          type: boolean
+          description: >-
+            Whether the measured time went past the target. Always `false` when
+            there is no target.
+        cleanup_done:
+          type: boolean
+          description: >-
+            Whether the temporary workload was destroyed. `false` on a finished
+            drill means something was left behind - see `POST /cleanup/{vmid}`.
+
+    QueueEntry:
+      allOf:
+        - $ref: '#/components/schemas/RunSummary'
+        - type: object
+          description: The lease over this drill, flattened onto the summary.
+          properties:
+            worker:
+              type: string
+              description: >-
+                The worker holding this drill, absent while it is still waiting
+                for one or when the lease could not be read.
+              examples: [worker-01]
+            lease_expires_at:
+              type: string
+              format: date-time
+              description: >-
+                When that hold lapses. A lease in the past means the worker
+                stopped renewing and reconciliation has not swept the drill yet.
+      description: >-
+        One waiting or running drill. It is a `RunSummary` with the lease fields
+        alongside it, in one flat object - not nested.
+
+    RunEvent:
+      type: object
+      description: >-
+        One line of a drill's progress, exactly as the engine emitted it. The
+        same object is the `data` of a `progress` frame on the event stream and
+        one item of the JSON representation, because both come from the same
+        query over the same stored sequence.
+      required: [seq, at, state]
+      properties:
+        seq:
+          type: integer
+          format: int64
+          description: >-
+            The event's position in the drill's stream. It is the SSE frame's
+            `id`, so `Last-Event-ID` needs no translation, and it is what `after`
+            takes.
+          examples: [7]
+        at:
+          type: string
+          format: date-time
+          description: When the event was emitted.
+        state:
+          $ref: '#/components/schemas/RunState'
+        step:
+          type: string
+          description: The workflow stage this event is about, when it is about one.
+          examples: [restore]
+        status:
+          type: string
+          description: That stage's status at this point.
+          enum: [pending, running, done, failed, skipped]
+        message:
+          type: string
+          description: What the engine had to say. Absent when it said nothing.
+        check:
+          $ref: '#/components/schemas/Check'
+        error:
+          type: string
+          description: Why this step failed. Absent when nothing failed.
+
+    RunDocument:
+      type: object
+      description: >-
+        The full, versioned report for one drill - schema
+        `restorelab.recovery-run/v1`. It is a hand-maintained wire format, never
+        the internal model marshalled directly, so a refactor cannot silently
+        change what consumers parse. Existing field names and types do not change
+        without a new schema version; new optional fields may appear at any time,
+        and a consumer should ignore what it does not recognise.
+      required:
+        - schema
+        - run_id
+        - plan_name
+        - source_workload_id
+        - source_name
+        - backup
+        - state
+        - result
+        - started_at
+        - completed_at
+        - steps
+        - checks
+        - rto_seconds
+        - rto
+        - rto_exceeded
+        - cleanup_done
+      properties:
+        schema:
+          type: string
+          description: The document's schema version. Always this value for now.
+          const: restorelab.recovery-run/v1
+        run_id:
+          type: string
+          description: The drill's id.
+          examples: ['9d7f1f2e-0c4a-4a4f-9a2b-6f5d3c1b0e77']
+        plan_name:
+          type: string
+          description: The name of the plan that ran.
+          examples: [postgres-prod]
+        plan_id:
+          type: string
+          description: >-
+            The stored plan it came from. Absent for an ad-hoc drill, and absent
+            once that plan is deleted.
+        plan_version:
+          type: integer
+          description: >-
+            The version of that plan that ran. A report that only named the plan
+            could not answer "which version", and the plan may well have been
+            edited since.
+          examples: [3]
+        provider_id:
+          type: string
+          description: The hypervisor provider the drill ran against.
+          examples: [proxmox-main]
+        backup_provider_id:
+          type: string
+          description: The provider the backup was read from, when it differed.
+          examples: [pbs-main]
+        source_workload_id:
+          type: string
+          description: The production workload that was drilled.
+          examples: ['101']
+        source_name:
+          type: string
+          description: That workload's name.
+          examples: [postgres-prod]
+        temp_workload_id:
+          type: string
+          description: >-
+            The temporary workload the drill created, inside the reserved range.
+            Absent when none was created.
+          examples: ['9001']
+        temp_name:
+          type: string
+          description: That temporary workload's name.
+          examples: [restorelab-postgres-prod-9001]
+        node:
+          type: string
+          description: The node the drill ran on.
+          examples: [pve01]
+        backup:
+          description: >-
+            The backup that was restored, as it stood **at the moment the drill
+            used it** - so an archived report does not age its own backup a
+            little more on every read. `null` when the drill never got that far.
+          oneOf:
+            - $ref: '#/components/schemas/Backup'
+            - type: 'null'
+        state:
+          $ref: '#/components/schemas/RunState'
+        result:
+          $ref: '#/components/schemas/RunResult'
+        started_at:
+          type: string
+          format: date-time
+          description: When the drill started.
+        completed_at:
+          type: string
+          format: date-time
+          description: >-
+            When the drill finished. Unlike `RunSummary.completed_at` this is
+            never `null`: a drill still going carries the zero instant,
+            `0001-01-01T00:00:00Z`.
+        steps:
+          type: array
+          description: The workflow stages, in order. Never `null`.
+          items:
+            $ref: '#/components/schemas/Step'
+        checks:
+          type: array
+          description: >-
+            What was verified inside the recovered guest. Never `null`; empty
+            when the drill never reached its checks.
+          items:
+            $ref: '#/components/schemas/Check'
+        rto_seconds:
+          type: number
+          format: double
+          description: The measured recovery time, in seconds.
+          examples: [137.4]
+        rto:
+          type: string
+          description: The same recovery time, formatted for display.
+          examples: [2m17s]
+        rto_target_seconds:
+          type: number
+          format: double
+          description: What the plan asked for, in seconds. Absent when it asked for nothing.
+          examples: [300]
+        rto_target:
+          type: string
+          description: The same target, formatted. Absent alongside `rto_target_seconds`.
+          examples: [5m]
+        rto_exceeded:
+          type: boolean
+          description: Whether the measured time went past the target.
+        cleanup_done:
+          type: boolean
+          description: Whether the temporary workload was destroyed.
+        error:
+          type: string
+          description: Why the drill failed. Absent when it did not.
+
+    Step:
+      type: object
+      description: One executed stage of the recovery workflow.
+      required:
+        - name
+        - state
+        - status
+        - started_at
+        - completed_at
+        - duration_seconds
+        - duration
+      properties:
+        name:
+          type: string
+          description: The stage's name.
+          examples: [restore]
+        state:
+          $ref: '#/components/schemas/RunState'
+        status:
+          type: string
+          description: How the stage ended.
+          enum: [pending, running, done, failed, skipped]
+        started_at:
+          type: string
+          format: date-time
+          description: When the stage started.
+        completed_at:
+          type: string
+          format: date-time
+          description: >-
+            When it ended. The zero instant, `0001-01-01T00:00:00Z`, for a stage
+            that has not ended.
+        duration_seconds:
+          type: number
+          format: double
+          description: How long it took, in seconds.
+          examples: [64.2]
+        duration:
+          type: string
+          description: The same duration, formatted.
+          examples: [1m4s]
+        message:
+          type: string
+          description: What the stage had to say. Absent when it said nothing.
+        error:
+          type: string
+          description: Why the stage failed. Absent when it did not.
+
+    Check:
+      type: object
+      description: >-
+        The outcome of one configured check, run against the recovered workload.
+      required:
+        - name
+        - type
+        - status
+        - pass
+        - started_at
+        - completed_at
+        - duration_seconds
+        - duration
+        - attempts
+      properties:
+        name:
+          type: string
+          description: The check's name, as the plan wrote it.
+          examples: ['API responds']
+        type:
+          type: string
+          description: Which kind of check this is.
+          enum: [ping, tcp, http, https, dns, command]
+        status:
+          type: string
+          description: >-
+            The outcome. `error` is not a failure of the service under test: it
+            means the check itself could not run.
+          enum: [pass, fail, error, skipped]
+        pass:
+          type: boolean
+          description: Whether the outcome counts as a success.
+        started_at:
+          type: string
+          format: date-time
+          description: When the check started.
+        completed_at:
+          type: string
+          format: date-time
+          description: When it ended.
+        duration_seconds:
+          type: number
+          format: double
+          description: How long it took, in seconds.
+          examples: [0.42]
+        duration:
+          type: string
+          description: The same duration, formatted.
+          examples: [420ms]
+        attempts:
+          type: integer
+          description: How many times it was tried, retries included.
+          examples: [2]
+        message:
+          type: string
+          description: What the check reported. Absent when it reported nothing.
+        details:
+          type: object
+          description: >-
+            Whatever else this kind of check has to say - an HTTP status, a
+            resolved address, a command's exit code. The shape depends on the
+            check type, and a consumer should treat it as free-form.
+          additionalProperties: true
+
+    Backup:
+      type: object
+      description: A single restorable point in time for a workload.
+      required:
+        - id
+        - workload_id
+        - created_at
+        - age_seconds
+        - age
+        - size_bytes
+        - size
+        - protected
+        - encrypted
+        - verified
+      properties:
+        id:
+          type: string
+          description: >-
+            The provider-scoped identifier - a Proxmox volid, a PBS snapshot
+            path, and so on.
+          examples: ['local:backup/vzdump-qemu-101-2026_08_14-02_00_03.vma.zst']
+        workload_id:
+          type: string
+          description: The workload this backup is of.
+          examples: ['101']
+        provider_id:
+          type: string
+          description: The provider holding it.
+          examples: [pbs-main]
+        datastore:
+          type: string
+          description: The datastore or storage it lives on.
+          examples: [backups]
+        node:
+          type: string
+          description: The node it is reachable from.
+          examples: [pve01]
+        created_at:
+          type: string
+          format: date-time
+          description: When the backup was taken.
+        age_seconds:
+          type: number
+          format: double
+          description: >-
+            How old it was at the reference instant - now, in a listing; the
+            moment the drill used it, in a report.
+          examples: [26100]
+        age:
+          type: string
+          description: The same age, formatted.
+          examples: [7h15m]
+        size_bytes:
+          type: integer
+          format: int64
+          description: Its size in bytes.
+          examples: [4831838208]
+        size:
+          type: string
+          description: The same size, formatted.
+          examples: [4.5 GiB]
+        protected:
+          type: boolean
+          description: Whether the provider marks it as protected from pruning.
+        encrypted:
+          type: boolean
+          description: Whether the provider stores it encrypted.
+        verified:
+          type: string
+          description: >-
+            What the provider's own verification says. `none` means it verified
+            nothing; `unknown` means it did not say.
+          enum: [ok, failed, none, unknown]
+        format:
+          type: string
+          description: The backup format, when the provider names one.
+          examples: [vma.zst]
+        notes:
+          type: string
+          description: The provider's note on the backup, when it carries one.
+
+    Workload:
+      type: object
+      description: >-
+        One workload on the cluster. `status` is filled in only by
+        `GET /workloads/{id}`.
+      required:
+        - id
+        - name
+        - kind
+        - cpu_cores
+        - memory_bytes
+        - disk_bytes
+        - power_state
+        - template
+        - managed
+      properties:
+        id:
+          type: string
+          description: The provider-scoped id.
+          examples: ['101']
+        name:
+          type: string
+          description: The workload's name.
+          examples: [postgres-prod]
+        kind:
+          type: string
+          description: The technology behind it, normalised across providers.
+          enum: [vm, container, unknown]
+        node:
+          type: string
+          description: The node it lives on.
+          examples: [pve01]
+        cluster:
+          type: string
+          description: The cluster it belongs to, when the provider names one.
+        tags:
+          type: array
+          description: The provider's tags on it.
+          items:
+            type: string
+          examples: [[production, database]]
+        cpu_cores:
+          type: integer
+          description: Allocated cores.
+          examples: [4]
+        memory_bytes:
+          type: integer
+          format: int64
+          description: Allocated memory, in bytes.
+          examples: [8589934592]
+        disk_bytes:
+          type: integer
+          format: int64
+          description: Allocated disk, in bytes.
+          examples: [107374182400]
+        power_state:
+          type: string
+          description: The coarse run state, normalised across providers.
+          enum: [running, stopped, paused, unknown]
+        template:
+          type: boolean
+          description: >-
+            Whether this is a template. Templates are always filtered out of
+            `GET /workloads`, so this is `false` in a listing.
+        managed:
+          type: boolean
+          description: >-
+            Whether RestoreLab created this workload for a drill. Managed
+            workloads are excluded from `GET /workloads` unless `temporary=true`.
+        recovery_run_id:
+          type: string
+          description: The drill that created it, for a managed workload.
+        last_run_id:
+          type: string
+          description: >-
+            The workload's most recent drill. Absent when it has never had one -
+            and also when the drill history could not be read, which a screen
+            renders the same way: "never tested".
+        last_run_at:
+          type: string
+          format: date-time
+          description: >-
+            When that drill **started**, not when it finished: a drill still
+            running has no completion time, and "last tested" has to have an
+            answer while it is in flight.
+        last_run_state:
+          type: string
+          description: >-
+            That drill's state. It is here as well as the result because a drill
+            still going and one that was cancelled both carry an empty result,
+            and they are not the same news.
+          enum:
+            - QUEUED
+            - DISCOVERING_BACKUP
+            - PREPARING_ENVIRONMENT
+            - RESTORING
+            - STARTING
+            - WAITING_FOR_GUEST
+            - RUNNING_CHECKS
+            - GENERATING_REPORT
+            - CLEANING_UP
+            - SUCCESS
+            - FAILED
+            - CANCELLED
+            - CLEANUP_FAILED
+        last_run_result:
+          type: string
+          description: That drill's verdict, absent while it has none.
+          enum: [SUCCESS, DEGRADED, FAILED]
+        status:
+          $ref: '#/components/schemas/WorkloadStatus'
+
+    WorkloadStatus:
+      type: object
+      description: >-
+        The live state of a workload, read from the provider. Present only on
+        `GET /workloads/{id}`, and only when it could be read at all.
+      required:
+        - power_state
+        - uptime_seconds
+        - agent_ready
+        - cpu_usage
+        - memory_bytes
+      properties:
+        power_state:
+          type: string
+          description: The live power state.
+          enum: [running, stopped, paused, unknown]
+        uptime_seconds:
+          type: number
+          format: double
+          description: How long it has been up, in seconds.
+          examples: [864000]
+        agent_ready:
+          type: boolean
+          description: >-
+            Whether the guest agent answers. Checks that run commands inside the
+            guest need it.
+        ips:
+          type: array
+          description: The addresses the guest reports. Absent when it reports none.
+          items:
+            type: string
+          examples: [['10.0.0.12']]
+        cpu_usage:
+          type: number
+          format: double
+          description: Current CPU usage, as a fraction between 0 and 1.
+          examples: [0.07]
+        memory_bytes:
+          type: integer
+          format: int64
+          description: Memory currently in use, in bytes.
+          examples: [3221225472]
+
+    Confidence:
+      type: object
+      description: >-
+        How much a restore of this workload can be counted on, from its drill
+        history and the age of its latest backup.
+      required: [workload_id, score, tested, reasons, runs_considered]
+      properties:
+        workload_id:
+          type: string
+          description: The workload that was scored.
+          examples: ['101']
+        score:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 100
+          description: >-
+            An integer from 0 to 100, or `null` when the workload has never been
+            drilled. A UI renders `null` as "--", never as 0%. There are no
+            letter grades anywhere in RestoreLab.
+          examples: [82]
+        tested:
+          type: boolean
+          description: Whether there is any drill to score at all.
+        reasons:
+          type: array
+          description: >-
+            What produced the score, in plain words. Never `null`; empty when
+            there is nothing to say.
+          items:
+            type: string
+          examples: [['last drill succeeded 3 days ago', 'latest backup is 7h15m old']]
+        last_run_id:
+          type: string
+          description: The most recent drill the score is based on. Absent when untested.
+        runs_considered:
+          type: integer
+          description: >-
+            How many past drills went into the score. At most the twenty most
+            recent.
+          examples: [12]
+
+    Plan:
+      type: object
+      description: >-
+        A stored recovery plan. `yaml` carries the document verbatim, which is
+        what makes a round trip through this API lossless - comments included. It
+        is absent from listings.
+      required: [id, name, workload_id, version, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          description: The plan's id.
+          examples: ['1f0a5b3c-2d4e-4f60-8a91-7c3b2e5d0146']
+        name:
+          type: string
+          description: The plan's name, unique across the catalogue.
+          examples: [postgres-prod]
+        description:
+          type: string
+          description: What the plan is for, when the document says.
+        workload_id:
+          type: string
+          description: The workload the plan drills.
+          examples: ['101']
+        provider_id:
+          type: string
+          description: The provider the plan names, absent when it names none.
+          examples: [proxmox-main]
+        version:
+          type: integer
+          minimum: 1
+          description: >-
+            Bumped on every replacement. Pass it as `?version=` on a `PUT` to
+            refuse an update that would overwrite somebody else's edit.
+          examples: [3]
+        created_at:
+          type: string
+          format: date-time
+          description: When the plan was first stored.
+        updated_at:
+          type: string
+          format: date-time
+          description: When it was last replaced.
+        yaml:
+          type: string
+          description: >-
+            The plan document, byte for byte as it was stored. Present on
+            `GET /plans/{ref}`, `POST /plans` and `PUT /plans/{ref}`; absent from
+            `GET /plans`.
+
+    PlanDocument:
+      type: string
+      description: >-
+        A recovery plan document - the YAML `restorelab plan apply` sends,
+        unwrapped. The parser also reads JSON, so a dashboard can post either.
+        Capped at 64 KiB.
+      examples:
+        - |
+          name: postgres-prod
+          description: Nightly drill of the production database
+          workload:
+            id: "101"
+            provider: proxmox-main
+          rto_target: 5m
+          checks:
+            - type: tcp
+              name: PostgreSQL accepts connections
+              port: 5432
+              critical: true
+            - type: http
+              name: API responds
+              url: http://{{ .ip }}:3000/health
+
+    ValidatedPlan:
+      type: object
+      description: What a plan document means, without storing it.
+      required: [valid, name, workload_id, normalized_yaml]
+      properties:
+        valid:
+          type: boolean
+          description: >-
+            Always `true` in a `200`; an invalid document is a `400` problem
+            document instead.
+          const: true
+        name:
+          type: string
+          description: The name the document declares.
+          examples: [postgres-prod]
+        description:
+          type: string
+          description: The description it declares, when it declares one.
+        workload_id:
+          type: string
+          description: The workload it drills.
+          examples: ['101']
+        provider_id:
+          type: string
+          description: The provider it names, absent when it names none.
+          examples: [proxmox-main]
+        normalized_yaml:
+          type: string
+          description: >-
+            The document with every default applied, rendered back as YAML. It is
+            what an editor shows as "here is what this actually says" - the
+            difference between a field left out and a field left out *meaning
+            something*.
+
+    Provider:
+      type: object
+      description: >-
+        A configured provider, with its credentials removed. Neither the token id
+        nor the sealed secret is ever exposed.
+      required: [id, kind, endpoint, insecure]
+      properties:
+        id:
+          type: string
+          description: The provider's id, as the configuration names it.
+          examples: [proxmox-main]
+        kind:
+          type: string
+          description: >-
+            Which integration this is: a Proxmox VE cluster, or a Proxmox Backup
+            Server.
+          enum: [proxmox, pbs]
+        roles:
+          type: array
+          description: What this provider is used for.
+          items:
+            type: string
+            enum: [hypervisor, backup]
+          examples: [[hypervisor, backup]]
+        endpoint:
+          type: string
+          description: The API endpoint it is reached at.
+          examples: ['https://restorelab.example.com:8006/api2/json']
+        node:
+          type: string
+          description: The default node, for a Proxmox VE provider.
+          examples: [pve01]
+        datastore:
+          type: string
+          description: The datastore, for a Proxmox Backup Server provider.
+          examples: [backups]
+        insecure:
+          type: boolean
+          description: Whether TLS verification is disabled for this provider.
+        default:
+          type: boolean
+          description: >-
+            Present and `true` on the provider used when a request names none.
+            Absent otherwise.
+
+    DoctorReport:
+      type: object
+      description: >-
+        The self-diagnostic. It is returned with a `200` however bad the verdict
+        is: a misconfigured cluster is what this is for.
+      required: [provider_id, ok, problems, findings]
+      properties:
+        provider_id:
+          type: string
+          description: The provider that was diagnosed.
+          examples: [proxmox-main]
+        endpoint:
+          type: string
+          description: Its endpoint, when the configuration carries one.
+          examples: ['https://restorelab.example.com:8006/api2/json']
+        ok:
+          type: boolean
+          description: >-
+            `false` as soon as one finding is `fail`. A `warn` does not make the
+            diagnostic bad.
+        problems:
+          type: integer
+          description: How many findings are not `ok`.
+          examples: [2]
+        findings:
+          type: array
+          description: Every finding, in the order the diagnostic produced them. Never `null`.
+          items:
+            $ref: '#/components/schemas/Finding'
+
+    Finding:
+      type: object
+      description: One line of the diagnostic.
+      required: [level, area, title]
+      properties:
+        level:
+          type: string
+          description: >-
+            How bad it is. `warn` is something that may bite but does not stop a
+            drill; `fail` is something that would stop or endanger one.
+          enum: [ok, warn, fail]
+        area:
+          type: string
+          description: Which part of the deployment the finding is about.
+          enum: [credentials, nodes, storage, network, workload, history]
+        title:
+          type: string
+          description: The finding itself, in one line.
+          examples: ['isolated bridge "vmbr9" present on pve01']
+        detail:
+          type: string
+          description: >-
+            What to do about it, or the underlying error. Absent when the title
+            says everything.
+
+    Session:
+      type: object
+      description: >-
+        What a client is told about its own session: whose token it rides on,
+        what it may do, and when it stops working.
+      required: [token_name, scopes, expires_at]
+      properties:
+        token_name:
+          type: string
+          description: The name of the token this session was opened with.
+          examples: [dashboard]
+        scopes:
+          type: array
+          description: >-
+            What this session can actually do. `read` is always listed, even
+            though no token stores it, because every token holds it - a UI
+            deciding which screens to offer needs the answer it will actually
+            get, not the row as it happens to be written.
+          items:
+            type: string
+            enum: [read, operate, manage]
+          examples: [[read, operate]]
+        expires_at:
+          type: string
+          format: date-time
+          description: >-
+            Twelve hours after the session was opened. It is never extended, so
+            this value does not move.
+
+    TriggerRequest:
+      type: object
+      description: |
+        The smallest terms that still describe a drill.
+
+        Two mutually exclusive shapes. **Named**: set `plan` alone, and every
+        other field must be absent - a request that mixes them is refused with a
+        `400` naming the keys to drop. **Ad-hoc**: leave `plan` unset, set
+        `workload_id`, and describe the rest here; everything but `workload_id`
+        has a default.
+      properties:
+        plan:
+          type: string
+          description: >-
+            A stored plan, by name or by id. Exclusive of every field below.
+          examples: [postgres-prod]
+        workload_id:
+          type: string
+          description: >-
+            What to drill. Required on the ad-hoc path; forbidden alongside
+            `plan`.
+          examples: ['101']
+        provider:
+          type: string
+          description: Which provider to run against. Defaults to the configured default.
+          examples: [proxmox-main]
+        backup:
+          type: string
+          description: >-
+            A specific backup to restore. Defaults to the latest one the provider
+            offers.
+        checks:
+          type: array
+          description: >-
+            Checks to run inside the recovered guest, in the same shorthand the
+            CLI takes.
+          items:
+            type: string
+          examples: [['tcp:5432', 'http://{{ .ip }}:3000/health']]
+        network:
+          type: string
+          description: >-
+            The network profile to restore onto. Defaults to the configured
+            default, which must be an isolated one.
+          examples: [isolated]
+        node:
+          type: string
+          description: The node to restore onto.
+          examples: [pve01]
+        storage:
+          type: string
+          description: The storage to restore onto.
+          examples: [local-lvm]
+        pool:
+          type: string
+          description: >-
+            The resource pool the temporary workload is created in - what keeps
+            the service account's destructive rights scoped to the drill area.
+          examples: [restorelab]
+        rto_target:
+          type: string
+          description: >-
+            The recovery time this drill should stay under, as a duration.
+            Anything the Go duration parser reads.
+          examples: [5m]
+        skip_startup:
+          type: boolean
+          description: >-
+            Restore and boot, but do not wait for services to come up. Turns a
+            drill into a restore test.
+
+    CleanupResult:
+      type: object
+      description: What was removed.
+      required: [workload_id, removed]
+      properties:
+        workload_id:
+          type: string
+          description: The temporary workload that was destroyed.
+          examples: ['9001']
+        removed:
+          type: boolean
+          description: Always `true`; a failure is a problem document instead.
+          const: true
+
+    SetupState:
+      type: object
+      description: >-
+        What an unconfigured server says about itself. Reaching it at all is the
+        message: a configured server does not serve this route.
+      required: [required]
+      properties:
+        required:
+          type: boolean
+          description: Always `true`, because the route only exists when it is.
+          const: true
+
+    SetupRequest:
+      type: object
+      description: >-
+        Everything provisioning needs, in one call - because there is only ever
+        one: the setup token is spent by the first request that uses it.
+      required: [endpoint, admin_user, admin_password, storages]
+      properties:
+        endpoint:
+          type: string
+          description: The Proxmox VE cluster's API address.
+          examples: ['https://restorelab.example.com:8006']
+        admin_user:
+          type: string
+          description: >-
+            An administrator able to create a role, a user, an ACL and a token on
+            that cluster.
+          examples: ['root@pam']
+        admin_password:
+          type: string
+          format: password
+          description: >-
+            That administrator's password. It lives for the duration of this call
+            only: it is never stored, never logged, and never echoed back -
+            refusals are scrubbed on their way out.
+        storages:
+          type: array
+          description: >-
+            Where a drill restores its clone. At least one is required: without a
+            storage no real drill can run.
+          minItems: 1
+          items:
+            type: string
+          examples: [['local-zfs']]
+        insecure:
+          type: boolean
+          description: >-
+            Skip TLS verification for this cluster. Prefer `fingerprint`, which
+            pins a certificate instead - that is what a self-signed cluster
+            should use.
+        fingerprint:
+          type: string
+          description: The certificate fingerprint to pin, instead of skipping verification.
+        create_bridge:
+          type: boolean
+          description: >-
+            Also create the isolated bridge the network profile names. A drill
+            refuses to run without one.
+        apply_bridge:
+          type: boolean
+          description: >-
+            Reload the node's network configuration once the bridge is written.
+            `false` writes it for the next reboot instead, which is what somebody
+            with a maintenance window wants.
+
+    SetupStep:
+      type: object
+      description: >-
+        One provisioning action, in the order it was performed. Every step is
+        idempotent, so a failed run can simply be repeated.
+      required: [description, status]
+      properties:
+        description:
+          type: string
+          description: What was done.
+          examples: ['create role RestoreLabDrill']
+        status:
+          type: string
+          description: How it went.
+          enum: [created, already exists, updated, skipped, would create]
+        detail:
+          type: string
+          description: What it amounted to. Absent when the description says everything.
+          examples: ['privileges: VM.Audit VM.Backup VM.Clone']
+
+    SetupResult:
+      type: object
+      description: >-
+        What provisioning produced. The server restarts immediately after
+        answering this, handing the port to the real RestoreLab.
+      required: [steps, provider_id, token, token_name]
+      properties:
+        steps:
+          type: array
+          description: Everything that was done, in order.
+          items:
+            $ref: '#/components/schemas/SetupStep'
+        provider_id:
+          type: string
+          description: The id the cluster was stored under.
+          examples: [proxmox-main]
+        node:
+          type: string
+          description: The node the bridge was created on. Absent when none was.
+          examples: [pve01]
+        bridge:
+          type: string
+          description: The isolated bridge's name. Absent when none was created.
+          examples: [vmbr9]
+        bridge_applied:
+          type: boolean
+          description: >-
+            Whether the node's network configuration was reloaded, or only
+            written for the next reboot.
+        token:
+          type: string
+          description: >-
+            The API token to log in with, holding `read`, `operate` and `manage` -
+            the person who just installed RestoreLab. **Returned exactly once,
+            here, and never readable again**: only its hash is stored. Exchange it
+            for a session at `POST /session`, and revoke it like any other with
+            `restorelab token revoke`.
+          examples: ['rl_EXAMPLE_TOKEN_NOT_A_REAL_SECRET_0123456789']
+        token_name:
+          type: string
+          description: What that token is called in `restorelab token list`.
+          examples: [dashboard]
+
+    SetupFailure:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          description: The provisioning progress carried alongside the refusal.
+          properties:
+            steps:
+              type: array
+              description: >-
+                What had been done when it failed. Absent when nothing had.
+              items:
+                $ref: '#/components/schemas/SetupStep'
+      description: >-
+        A `POST /setup` refusal, in one flat object: an ordinary problem document
+        with the steps already performed alongside it. It is the only problem
+        document in this API that carries anything extra - widening the shared
+        one would have put an empty `steps` on every error the API has ever
+        returned.

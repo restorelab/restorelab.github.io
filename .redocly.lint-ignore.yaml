@@ -1,0 +1,12 @@
+# Redocly lint exceptions. One entry, and it is deliberate.
+#
+# `operation-4xx-response` wants every operation to document a failure.
+# `GET /health` has none: it takes no credential, reads no database, parses no
+# parameter, and answers 200 or nothing at all. Inventing a 4xx to satisfy the
+# linter would put a response in the contract that the server cannot produce,
+# which is worse than the warning. Every other operation documents its errors.
+#
+# See https://redocly.com/docs/cli/ for the file format.
+spec/openapi.yaml:
+  operation-4xx-response:
+    - '#/paths/~1health/get/responses'
