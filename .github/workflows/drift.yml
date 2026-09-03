@@ -1,0 +1,133 @@
+# Dit chaque jour si le site a pris du retard sur le produit.
+#
+# La documentation, la référence CLI, le contrat d'API et le numéro de version
+# viennent tous de `restorelab/restorelab`, qui est privé : le build public ne
+# peut pas les comparer à leur source. Le hook `pre-push` couvre le cas de
+# quelqu'un qui publie ; celui-ci couvre le cas inverse, et c'est le plus
+# fréquent — le produit avance, personne ne touche au site, et il vieillit sans
+# que rien ne le dise.
+#
+# **Il ne modifie rien.** Il ouvre une issue et s'arrête. Synchroniser demande
+# de relire ce qui a changé, et un commit automatique sur une landing rédigée à
+# la main ferait plus de dégâts qu'il n'en éviterait.
+#
+# ACTIVATION : le job s'ignore tant que le secret `RESTORELAB_SRC_TOKEN` n'est
+# pas posé — un PAT fine-grained, Contents en lecture seule sur
+# `restorelab/restorelab`, rien d'autre. Sans lui il n'y a rien à cloner, et
+# échouer tous les jours pour cette raison apprendrait juste à ignorer l'alerte.
+#
+# Le secret vit dans un dépôt public : personne d'autre que le propriétaire ne
+# pousse ici et aucun workflow ne s'exécute sur une pull request, donc il n'est
+# pas exposé à du code tiers. À reconsidérer si ce dépôt accepte un jour des
+# contributions extérieures.
+
+name: Drift
+
+on:
+  schedule:
+    # 06:00 UTC, pour que le rapport soit là au début de la journée.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: drift
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: token
+        run: |
+          if [ -n "${{ secrets.RESTORELAB_SRC_TOKEN }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::RESTORELAB_SRC_TOKEN absent : contrôle de dérive ignoré."
+          fi
+
+      - uses: actions/setup-node@v7
+        if: steps.token.outputs.present == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm install`, pas `npm ci` : même raison que dans deploy.yml, le
+      # lockfile est écrit sous Windows et n'a pas les replis wasm de Linux.
+      - run: npm install --no-audit --no-fund
+        if: steps.token.outputs.present == 'true'
+
+      - uses: actions/checkout@v7
+        if: steps.token.outputs.present == 'true'
+        with:
+          repository: restorelab/restorelab
+          token: ${{ secrets.RESTORELAB_SRC_TOKEN }}
+          path: .restorelab-src
+          # Les tags sont ce qui donne la version publiée.
+          fetch-depth: 0
+
+      - id: check
+        if: steps.token.outputs.present == 'true'
+        continue-on-error: true
+        env:
+          RESTORELAB_REPO: .restorelab-src
+        run: |
+          # `gen:cli --check` n'est pas ici : il lui faut le binaire compilé,
+          # donc une chaîne Go et Node, pour un contrôle que le hook `pre-push`
+          # fait déjà en local là où le binaire existe.
+          {
+            echo "## Ce qui a dérivé"
+            echo
+            echo '```'
+          } > report.md
+
+          status=0
+          for step in sync:check check:api check:version; do
+            echo "── $step" >> report.md
+            if npm run --silent "$step" >> report.md 2>&1; then
+              :
+            else
+              status=1
+            fi
+            echo >> report.md
+          done
+
+          echo '```' >> report.md
+          echo "drifted=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Ouvrir ou mettre à jour l'issue
+        if: steps.token.outputs.present == 'true' && steps.check.outputs.drifted == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: 'Le site a pris du retard sur RestoreLab'
+        run: |
+          {
+            echo
+            echo "Détecté par le workflow \`Drift\` du $(date -u '+%Y-%m-%d %H:%M UTC')."
+            echo
+            echo "Pour rattraper, depuis un poste où \`../RestoreLab\` est présent :"
+            echo
+            echo '```bash'
+            echo 'npm run sync        # la documentation'
+            echo 'npm run gen:cli     # la référence CLI, si le binaire a changé'
+            echo 'npm run check       # tout le reste'
+            echo '```'
+            echo
+            echo "Le contrat d'API et le numéro de version se mettent à jour à la main :"
+            echo "voir \`STATE.md\`."
+          } >> report.md
+
+          existing=$(gh issue list --state open --search "$TITLE in:title" \
+            --json number --jq '.[0].number // empty')
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file report.md
+          else
+            gh issue create --title "$TITLE" --body-file report.md
+          fi

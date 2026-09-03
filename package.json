@@ -3,6 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
@@ -14,6 +15,9 @@
     "test": "node --test --experimental-strip-types scripts/lib/*.test.mjs",
     "lint:api": "redocly lint spec/openapi.yaml",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "check:api": "node scripts/check-api-drift.mjs",
+    "check:version": "node scripts/check-version.mjs",
+    "check": "node scripts/check-all.mjs",
     "copy:spec": "node scripts/copy-spec.mjs",
     "prebuild": "npm run copy:spec && npm run lint:api"
   },

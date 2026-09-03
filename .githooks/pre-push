@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# Refuse de publier un site qui a dérivé de son produit.
+#
+# La documentation, la référence CLI et le contrat d'API viennent tous de
+# `restorelab/restorelab`, qui est privé : la CI publique ne peut pas les
+# comparer à leur source. Le seul endroit d'où c'est possible, c'est ici, où
+# le dépôt produit est le répertoire voisin — et le moment utile, c'est juste
+# avant de publier.
+#
+# Sans ça, il faut penser à lancer cinq commandes. Le 2026-09-03, personne n'y
+# a pensé : le site a annoncé « next » pour une fonctionnalité livrée pendant
+# qu'il lui manquait un guide, trois commandes CLI et deux routes d'API.
+#
+# Une étape dont la source manque est ignorée, pas fatale : on doit pouvoir
+# corriger une coquille sans avoir le dépôt produit sous la main.
+#
+# Installé par `npm install`, via le script `prepare` qui pose
+# `core.hooksPath`. Pour passer outre une fois : `git push --no-verify`.
+
+if ! npm run --silent check; then
+	echo ""
+	echo "pre-push: publication refusée — le site a dérivé, ou quelque chose est cassé."
+	echo "pre-push: corriger ci-dessus, ou forcer avec 'git push --no-verify'."
+	exit 1
+fi
