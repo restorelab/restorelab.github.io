@@ -33,6 +33,7 @@ Available Commands:
   provider    Manage Proxmox VE and Proxmox Backup Server connections
   recovery    Run recovery drills
   runs        Inspect the history of past recovery drills
+  schedule    See the drills stored plans queue for themselves
   serve       Serve the HTTP API and execute the drills it queues
   token       Manage the API tokens `restorelab serve` accepts
   version     Print the version
@@ -842,8 +843,15 @@ it needs no network route into the isolated recovery network at all. The
 interpreter is chosen from the guest's own OS - cmd on Windows, /bin/sh
 elsewhere - so the same --check works on either.
 
-With no --check, a TCP check on port 22 is used: it proves the guest booted,
-configured its network, and started a service.
+With no --check, RestoreLab runs 'cmd:hostname' inside the guest. It is a
+small claim on purpose - the guest is running and can still fork a process -
+but it is one that holds wherever RestoreLab is installed. Network checks
+(tcp:, http:, dns:, ping) need a route into the isolated recovery network,
+which most deployments deliberately do not have; when they cannot reach the
+guest at all, the drill ends INCONCLUSIVE rather than claiming the backup
+failed. Point a --check at the service that actually matters to you:
+
+    --check 'cmd:systemctl is-active postgresql'
 
 Usage:
   restorelab recovery test <workload-id> [flags]
@@ -852,8 +860,8 @@ Flags:
       --backup string              restore point: "latest" or a backup id (default "latest")
       --backup-provider string     backup provider to search for restore points
       --check stringArray          check to run (repeatable): ping, tcp:PORT, http://..., dns:NAME, cmd:COMMAND
-      --check-interval duration    wait between check attempts (default 6s)
-      --check-retries int          how many times to retry a check that has not passed yet (default 10)
+      --check-interval duration    wait between check attempts (default 5s)
+      --check-retries int          how many times to retry a check that has not passed yet (default 5)
       --cpu int                    cap the temporary workload's cores
       --dry-run                    resolve the backup and validate the plan without restoring anything
   -h, --help                       help for test
@@ -958,6 +966,81 @@ Global Flags:
   -v, --verbose                  verbose output
 ```
 
+## restorelab schedule
+
+See the drills stored plans queue for themselves
+
+```text
+Shows what the scheduler is going to do, and what it has done.
+
+There is nothing to create here: a schedule lives in its plan, next to what
+it drills, and is edited with `restorelab plan apply` or in the
+dashboard. One place to look when a drill did not run.
+
+Usage:
+  restorelab schedule [command]
+
+Available Commands:
+  list        Scheduled plans and when each one drills next
+  slots       The slots the scheduler has decided, skipped ones included
+
+Flags:
+  -h, --help   help for schedule
+
+Global Flags:
+      --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
+      --master-key-file string   path to the master key file (default: ~/.restorelab/master.key; RESTORELAB_MASTER_KEY holds the key itself and wins over this)
+      --no-color                 disable coloured output
+  -v, --verbose                  verbose output
+
+Use "restorelab schedule [command] --help" for more information about a command.
+```
+
+## restorelab schedule list
+
+```text
+Scheduled plans and when each one drills next
+
+Usage:
+  restorelab schedule list [flags]
+
+Aliases:
+  list, ls
+
+Flags:
+  -h, --help   help for list
+
+Global Flags:
+      --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
+      --master-key-file string   path to the master key file (default: ~/.restorelab/master.key; RESTORELAB_MASTER_KEY holds the key itself and wins over this)
+      --no-color                 disable coloured output
+  -v, --verbose                  verbose output
+```
+
+## restorelab schedule slots
+
+The slots the scheduler has decided, skipped ones included
+
+```text
+Lists the cron slots the scheduler has decided about.
+
+A skipped slot is the answer to "why was this machine not tested", so they are
+listed alongside the drills rather than hidden.
+
+Usage:
+  restorelab schedule slots [plan] [flags]
+
+Flags:
+  -h, --help        help for slots
+      --limit int   how many slots to show
+
+Global Flags:
+      --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
+      --master-key-file string   path to the master key file (default: ~/.restorelab/master.key; RESTORELAB_MASTER_KEY holds the key itself and wins over this)
+      --no-color                 disable coloured output
+  -v, --verbose                  verbose output
+```
+
 ## restorelab serve
 
 Serve the HTTP API and execute the drills it queues
@@ -977,6 +1060,10 @@ two processes, one history.
     restorelab serve --no-listen                        (the worker alone)
     restorelab serve --no-worker --worker-elsewhere     (the API alone)
 
+A process that runs the worker also queues the drills stored plans schedule
+for themselves. Use --no-scheduler to stop that for one night without
+touching any plan; see `restorelab schedule list` for what is coming.
+
 Listening anywhere but loopback needs at least one API token, created with
 `restorelab token create <name>`. Put TLS in front of it with a
 reverse proxy.
@@ -988,6 +1075,7 @@ Flags:
   -h, --help               help for serve
       --listen string      address to listen on (default "127.0.0.1:8080")
       --no-listen          execute drills without serving the API
+      --no-scheduler       do not queue the drills stored plans schedule for themselves
       --no-worker          serve the API without executing drills (another process must run the worker)
       --worker-elsewhere   confirm that another process runs the worker against the same database (required with --no-worker)
 
