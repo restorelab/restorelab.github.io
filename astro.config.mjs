@@ -39,6 +39,23 @@ export default defineConfig({
         },
       ],
 
+      // Le cube du logo, et lui seul : le symbole complet (engrenage, bouclier,
+      // orbite, coche) devient illisible sous 24 px — mesuré — et c'est
+      // précisément la taille d'un favicon et d'une marque de navigation.
+      logo: { src: './src/assets/logo-cube.webp' },
+      favicon: '/favicon-32.png',
+
+      head: [
+        {
+          tag: 'link',
+          attrs: { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/favicon-192.png' },
+        },
+        {
+          tag: 'link',
+          attrs: { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        },
+      ],
+
       customCss: ['./src/styles/theme.css'],
 
       components: {

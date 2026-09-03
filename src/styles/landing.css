@@ -258,10 +258,11 @@ img {
   font-size: 1.02rem;
 }
 
+/* La marque est une image matricielle depuis que le vrai logo est en place :
+   plus de `color`, qui ne teintait qu'un SVG en `currentColor`. */
 .brand__mark {
-  width: 1.15rem;
-  height: 1.15rem;
-  color: var(--accent);
+  width: 1.25rem;
+  height: 1.25rem;
   flex: none;
 }
 
