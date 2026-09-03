@@ -1944,6 +1944,13 @@ components:
           description: >-
             Whether the temporary workload was destroyed. `false` on a finished
             drill means something was left behind - see `POST /cleanup/{vmid}`.
+        proof_level:
+          allOf:
+            - $ref: '#/components/schemas/ProofLevel'
+          description: >-
+            What this drill established, as opposed to how it went. Absent on a
+            drill recorded before RestoreLab wrote this down, which means "not
+            recorded" and never "nothing was proven".
 
     QueueEntry:
       allOf:
@@ -2150,6 +2157,13 @@ components:
         error:
           type: string
           description: Why the drill failed. Absent when it did not.
+        proof_level:
+          allOf:
+            - $ref: '#/components/schemas/ProofLevel'
+          description: >-
+            What this drill established. `result` says how the drill went;
+            this says what it is entitled to claim. A `SUCCESS` at `BOOT` is a
+            real success that proved the kernel comes up and nothing else.
 
     Step:
       type: object
@@ -2449,10 +2463,18 @@ components:
             - FAILED
             - CANCELLED
             - CLEANUP_FAILED
+            - INCONCLUSIVE
         last_run_result:
           type: string
           description: That drill's verdict, absent while it has none.
           enum: [SUCCESS, DEGRADED, FAILED]
+        last_run_proof:
+          allOf:
+            - $ref: '#/components/schemas/ProofLevel'
+          description: >-
+            What that drill established. Absent both when the workload has
+            never been drilled and when the drill predates the field: a client
+            says "not recorded" for the second, never "nothing".
         status:
           $ref: '#/components/schemas/WorkloadStatus'
 
@@ -2539,6 +2561,45 @@ components:
             How many past drills went into the score. At most the twenty most
             recent.
           examples: [12]
+        proof_level:
+          allOf:
+            - $ref: '#/components/schemas/ProofLevel'
+          description: >-
+            What the newest drill that reached a verdict established. Absent
+            when no such drill recorded one.
+        proof_cap:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: >-
+            The ceiling `proof_level` puts on the score: 40 for `NONE`, 60 for
+            `BOOT`, 85 for `SERVICE`, and absent for `DATA`, which has none. It
+            is here so a client can explain the number rather than print it: a
+            score of 60 beside "only the boot was verified" is a sentence, a
+            bare 60 is a mystery.
+          examples: [85]
+
+    ProofLevel:
+      type: string
+      description: >-
+        What a drill established, as opposed to how it went. The scale is
+        ordered by what is proven, not by what it costs to arrange: a `tcp`
+        probe that answers proves a service listens, no more, and it does not
+        outrank a query against the data because it needed a route into the
+        recovery network.
+
+
+        `NONE` - nothing ran inside the guest. `BOOT` - the OS started and
+        executes code, established by the guest agent answering or a trivial
+        in-guest command, never by power state. `SERVICE` - a service started
+        with its real configuration and its real data. `DATA` - the data is
+        there, claimed only where a check declares `proves: data`.
+
+
+        A run's level is the highest among the checks that actually passed. One
+        that failed, that could not run, or that never ran establishes nothing.
+      enum: [NONE, BOOT, SERVICE, DATA]
+      examples: [SERVICE]
 
     Plan:
       type: object
@@ -2645,6 +2706,17 @@ components:
             what an editor shows as "here is what this actually says" - the
             difference between a field left out and a field left out *meaning
             something*.
+        proof_level:
+          allOf:
+            - $ref: '#/components/schemas/ProofLevel'
+          description: >-
+            What this plan would establish if every one of its checks passed.
+        proof_summary:
+          type: string
+          description: >-
+            The same thing in a sentence, in the conditional, because nothing
+            has drilled yet.
+          examples: ['SERVICE, the service would be verified, the data would not']
 
     Provider:
       type: object
