@@ -2,6 +2,7 @@
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
+import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi';
 
 export default defineConfig({
   site: 'https://restorelab.github.io',
@@ -27,6 +28,15 @@ export default defineConfig({
 
       customCss: ['./src/styles/theme.css'],
 
+      plugins: [
+        starlightOpenAPI([
+          {
+            base: 'api',
+            label: 'API reference',
+            schema: './spec/openapi.yaml',
+          },
+        ]),
+      ],
 
       sidebar: [
         {
@@ -42,6 +52,7 @@ export default defineConfig({
           label: 'Reference',
           items: [{ autogenerate: { directory: 'reference' } }],
         },
+        ...openAPISidebarGroups,
       ],
 
       editLink: {
