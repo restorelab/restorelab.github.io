@@ -1,52 +1,61 @@
 ---
 import { Code } from 'astro:components';
+import type { Lang, LandingCopy } from '../i18n/landing';
+import { localize } from '../i18n/landing';
 
 /**
- * Install, from the README: build, run, and finish in the browser. Shiki
- * highlights at build time through `astro:components`, so nothing is hydrated;
- * the copy buttons are a dozen lines of inline JavaScript with no dependency.
+ * L'installation, tirée du README : compiler, lancer, finir dans le navigateur.
+ * Shiki colore au build à travers `astro:components`, donc rien n'est hydraté ;
+ * les boutons de copie sont une douzaine de lignes de JavaScript inline, sans
+ * aucune dépendance.
+ *
+ * Les commandes et le bloc de sortie de `serve` ne sont pas dans le
+ * dictionnaire de copie : les commandes sont identiques dans les deux langues,
+ * et la sortie est celle du binaire, qui n'affiche que de l'anglais.
  */
+interface Props {
+  copy: LandingCopy;
+  lang: Lang;
+}
+
+const { copy, lang } = Astro.props;
+const { quickStart, copyButton } = copy;
+
 const shiki = {
   themes: { light: 'github-light', dark: 'github-dark' },
   defaultColor: false as const,
 };
 
-const steps = [
-  {
-    n: '01',
-    text: 'Build the binary. Go 1.27+ is required until the first binary release.',
-    code: 'go build -o bin/restorelab ./cmd/restorelab',
-  },
-  {
-    n: '02',
-    text: 'Start it. Nothing has to be configured first.',
-    code: 'bin/restorelab serve',
-  },
+/** Les commandes des deux étapes ; le texte qui les accompagne est traduit. */
+const commands = [
+  'go build -o bin/restorelab ./cmd/restorelab',
+  'bin/restorelab serve',
 ];
 
-const terminal = `# Connect your cluster. Same password handling, same service account.
-bin/restorelab connect https://pve.example.com:8006 --storage local-zfs
+const steps = commands.map((code, i) => ({
+  n: String(i + 1).padStart(2, '0'),
+  text: quickStart.steps[i],
+  code,
+}));
 
-# see what can be recovery-tested
-bin/restorelab workloads list --backups
-
-# run a drill on VM 101, from its latest backup
-bin/restorelab recovery test 101`;
+/** Les libellés que le script inline pose sur le bouton après un clic. */
+const copyLabels = {
+  'data-label-copy': copyButton.label,
+  'data-label-copied': copyButton.copied,
+  'data-label-failed': copyButton.failed,
+};
 ---
 
 <section class="section" id="quick-start">
   <div class="wrap section__grid">
     <div class="section__aside">
       <span class="section__index">04</span>
-      <span class="section__label">Quick start</span>
+      <span class="section__label">{quickStart.label}</span>
     </div>
 
     <div>
-      <h2 class="section__title">Two commands, then a browser</h2>
-      <p class="prose">
-        One binary, no agent to install on the guests, no daemon to keep alive
-        beside it. That is the whole of it.
-      </p>
+      <h2 class="section__title">{quickStart.title}</h2>
+      <p class="prose">{quickStart.intro}</p>
 
       <div class="steps">
         {
@@ -62,9 +71,10 @@ bin/restorelab recovery test 101`;
                   class="copy"
                   type="button"
                   data-copy={step.code}
-                  aria-label={`Copy: ${step.code}`}
+                  aria-label={`${copyButton.ariaPrefix} ${step.code}`}
+                  {...copyLabels}
                 >
-                  Copy
+                  {copyButton.label}
                 </button>
               </div>
             </div>
@@ -72,10 +82,7 @@ bin/restorelab recovery test 101`;
         }
       </div>
 
-      <p class="prose" style="margin-top: 2rem;">
-        With nothing configured, <code class="mono">serve</code> starts anyway
-        and prints an address carrying a one-time setup token:
-      </p>
+      <p class="prose" style="margin-top: 2rem;" set:html={quickStart.setupIntro} />
 
       <div class="term" style="margin-top: 0.9rem;">
         <div class="term__bar">
@@ -89,85 +96,66 @@ bin/restorelab recovery test 101`;
       <span class="term__rto">http://127.0.0.1:8080/setup?token=rls_...</span></pre>
       </div>
 
-      <p class="prose" style="margin-top: 1.5rem;">
-        Open it and the browser asks for your cluster&rsquo;s address, an
-        administrator&rsquo;s password, and the storage drills restore onto.
-        RestoreLab uses that password once, in memory, to create its own
-        least-privilege service account, then throws it away — only the
-        resulting token is stored, sealed with a master key it generates for
-        you. It offers to create the isolated bridge on the same screen.
-      </p>
-      <p class="prose">
-        When it finishes, the server restarts itself and the page you are
-        already on opens your session. You land on the dashboard, connected,
-        without going back to the terminal.
-      </p>
+      <p class="prose" style="margin-top: 1.5rem;">{quickStart.setupBody}</p>
+      <p class="prose">{quickStart.setupBody2}</p>
 
       <div class="subhead">
-        <h3 class="subhead__title">The same thing from a terminal</h3>
-        <p class="prose">
-          Every capability stays on the command line — it is what automation
-          drives.
-        </p>
+        <h3 class="subhead__title">{quickStart.subheadTitle}</h3>
+        <p class="prose">{quickStart.subheadBody}</p>
       </div>
 
       <div class="codeblock">
-        <Code code={terminal} lang="bash" {...shiki} />
+        <Code code={quickStart.terminal} lang="bash" {...shiki} />
         <button
           class="copy"
           type="button"
-          data-copy={terminal}
-          aria-label="Copy the three terminal commands"
+          data-copy={quickStart.terminal}
+          aria-label={quickStart.terminalAria}
+          {...copyLabels}
         >
-          Copy
+          {copyButton.label}
         </button>
       </div>
 
       <div class="notes">
-        <div class="note">
-          <h3 class="note__title">Look before touching</h3>
-          <p>
-            <code class="mono">connect --read-only</code> produces a token that
-            cannot create or destroy anything, and is enough for discovery and <code
-              class="mono">recovery test --dry-run</code>.
-          </p>
-        </div>
-
-        <div class="note">
-          <h3 class="note__title">Building without the front end</h3>
-          <p>
-            A binary built without the front-end toolchain has no interface
-            compiled in and says so instead of 404ing; <code class="mono"
-              >make ui</code
-            > is what compiles it.
-          </p>
-        </div>
+        {
+          quickStart.notes.map((note) => (
+            <div class="note">
+              <h3 class="note__title">{note.title}</h3>
+              <p set:html={note.body} />
+            </div>
+          ))
+        }
       </div>
 
       <p class="linkrow">
-        <a href="/start/quick-start/">Full quick start →</a>
+        <a href={localize('/start/quick-start/', lang)}>{quickStart.moreLink}</a>
       </p>
     </div>
   </div>
 </section>
 
 <script is:inline>
+  // Les libellés viennent de `data-label-*` : ce script n'est pas transformé,
+  // il ne peut donc pas interpoler une variable Astro, et la landing existe en
+  // deux langues.
   document.addEventListener('click', function (event) {
     var button = event.target.closest('.copy');
     if (!button || !navigator.clipboard) return;
+    var idle = button.dataset.labelCopy || 'Copy';
     navigator.clipboard.writeText(button.getAttribute('data-copy')).then(
       function () {
         button.dataset.copied = 'true';
-        button.textContent = 'Copied';
+        button.textContent = button.dataset.labelCopied || 'Copied';
         setTimeout(function () {
           button.dataset.copied = 'false';
-          button.textContent = 'Copy';
+          button.textContent = idle;
         }, 1600);
       },
       function () {
-        button.textContent = 'Failed';
+        button.textContent = button.dataset.labelFailed || 'Failed';
         setTimeout(function () {
-          button.textContent = 'Copy';
+          button.textContent = idle;
         }, 1600);
       },
     );

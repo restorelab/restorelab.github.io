@@ -1,125 +1,74 @@
 ---
-/**
- * The capability table from the README, unabridged. The two honest caveats —
- * Proxmox Backup Server and the network checks have never run against real
- * hardware — are stated above the table and repeated on the rows themselves.
- * They are not a footnote.
- */
-type Row = { area: string; state: 'done' | 'next' | 'planned'; caveat?: string };
+import type { Lang, LandingCopy, StatusRowId } from '../i18n/landing';
+import { localize } from '../i18n/landing';
 
-const rows: Row[] = [
-  {
-    area: 'Proxmox VE provider (restore / harden / start / status / delete)',
-    state: 'done',
-  },
-  {
-    area: 'Proxmox Backup Server discovery',
-    state: 'done',
-    caveat: 'Never run against a real PBS',
-  },
-  {
-    area: 'Recovery engine (isolation, capacity, cleanup, RTO, grading)',
-    state: 'done',
-  },
-  {
-    area: 'Checks: ping, tcp, http/https, dns',
-    state: 'done',
-    caveat: 'Never run against a real isolated bridge',
-  },
-  {
-    area: 'In-guest checks through the QEMU guest agent (no network path needed)',
-    state: 'done',
-  },
-  {
-    area: 'CLI (<code>init</code>, <code>provider</code>, <code>workloads</code>, <code>backups</code>, <code>recovery</code>, <code>cleanup</code>)',
-    state: 'done',
-  },
-  { area: 'Reports: terminal, JSON, self-contained HTML', state: 'done' },
-  {
-    area: 'One-command setup (<code>connect</code>) creating a least-privilege service account',
-    state: 'done',
-  },
-  {
-    area: '<code>doctor</code> diagnostics and <code>network create</code> for the isolated bridge',
-    state: 'done',
-  },
-  {
-    area: 'Drill history, SQLite by default, PostgreSQL optional (<code>runs</code>, <code>db</code>)',
-    state: 'done',
-  },
-  {
-    area: 'HTTP API + token auth and scopes (<code>serve</code>, <code>token</code>)',
-    state: 'done',
-  },
-  {
-    area: 'Recovery confidence score, computed from the stored history',
-    state: 'done',
-  },
-  {
-    area: 'Triggering and cancelling drills over HTTP, worker, queue, live event stream',
-    state: 'done',
-  },
-  {
-    area: 'Recovery plans stored in the database, edited over HTTP or with <code>plan</code>',
-    state: 'done',
-  },
-  {
-    area: 'Browser session cookie, so a dashboard can authenticate and read the event stream',
-    state: 'done',
-  },
-  {
-    area: 'Web dashboard, served from the binary: overview, history, live drill, workloads, diagnostics',
-    state: 'done',
-  },
-  {
-    area: 'Launching and cancelling drills from the browser, and destroying what they leave behind',
-    state: 'done',
-  },
-  {
-    area: 'Writing the plan catalogue in the browser, validated by the binary as you type',
-    state: 'done',
-  },
-  {
-    area: 'First-run setup in the browser, replacing the install commands',
-    state: 'done',
-  },
-  {
-    area: 'Scheduled drills, SSH / PostgreSQL / MySQL checks, notifications',
-    state: 'next',
-  },
-  { area: 'Remote probes, RBAC, OIDC', state: 'planned' },
+/**
+ * La table de capacités du README, non abrégée. Les deux réserves honnêtes —
+ * Proxmox Backup Server et les contrôles réseau n'ont jamais tourné contre du
+ * vrai matériel — sont énoncées au-dessus de la table et répétées sur les
+ * lignes concernées. Ce ne sont pas des notes de bas de page.
+ *
+ * L'ordre et l'état vivent ici, pas dans le dictionnaire : ce sont des données,
+ * et les dupliquer par langue les laisserait diverger. Seul le libellé est
+ * traduit, désigné par un identifiant que `Record<StatusRowId, string>` force
+ * chaque langue à couvrir.
+ */
+interface Props {
+  copy: LandingCopy;
+  lang: Lang;
+}
+
+const { copy, lang } = Astro.props;
+const { status } = copy;
+
+type State = 'done' | 'next' | 'planned';
+
+const rows: { id: StatusRowId; state: State }[] = [
+  { id: 'proxmoxProvider', state: 'done' },
+  { id: 'pbsDiscovery', state: 'done' },
+  { id: 'recoveryEngine', state: 'done' },
+  { id: 'networkChecks', state: 'done' },
+  { id: 'guestAgentChecks', state: 'done' },
+  { id: 'cli', state: 'done' },
+  { id: 'reports', state: 'done' },
+  { id: 'oneCommandSetup', state: 'done' },
+  { id: 'doctorAndNetwork', state: 'done' },
+  { id: 'drillHistory', state: 'done' },
+  { id: 'httpApi', state: 'done' },
+  { id: 'confidenceScore', state: 'done' },
+  { id: 'triggerOverHttp', state: 'done' },
+  { id: 'storedPlans', state: 'done' },
+  { id: 'sessionCookie', state: 'done' },
+  { id: 'dashboard', state: 'done' },
+  { id: 'launchFromBrowser', state: 'done' },
+  { id: 'planCatalogueInBrowser', state: 'done' },
+  { id: 'setupInBrowser', state: 'done' },
+  { id: 'scheduledDrills', state: 'next' },
+  { id: 'remoteProbes', state: 'planned' },
 ];
+
+const legendOrder: State[] = ['done', 'next', 'planned'];
+
+/** Le lien du guide d'isolation réseau, dans la phrase de l'encadré. */
+const caveat = status.caveat.replace(
+  '{networkIsolation}',
+  localize('/guides/network-isolation/', lang),
+);
 ---
 
 <section class="section" id="status">
   <div class="wrap section__grid">
     <div class="section__aside">
       <span class="section__index">06</span>
-      <span class="section__label">Status</span>
+      <span class="section__label">{status.label}</span>
     </div>
 
     <div>
-      <h2 class="section__title">Alpha, and specific about it</h2>
-      <p class="prose" style="margin-bottom: 1.75rem;">
-        The Proxmox recovery drill pipeline works end to end and has been driven
-        against a live Proxmox VE 9 cluster. Drill history is kept
-        automatically, recovery plans live in the database, and the HTTP API
-        both serves that history and triggers new drills through a worker that
-        drains a queue.
-      </p>
+      <h2 class="section__title">{status.title}</h2>
+      <p class="prose" style="margin-bottom: 1.75rem;">{status.intro}</p>
 
       <div class="caveat">
-        <p>
-          Two things below are implemented and unit-tested but have <strong
-            >never run against real infrastructure</strong
-          >, because the
-          cluster this was built on has neither: <strong
-            >Proxmox Backup Server</strong
-          >, and the <strong>network checks</strong>, which need a route to the
-          isolated bridge. Everything else has been driven against a live
-          cluster. See <a href="/guides/network-isolation/">network isolation</a
-          >.
-        </p>
+        <p set:html={caveat} />
       </div>
 
       <div class="matrix">
@@ -127,21 +76,29 @@ const rows: Row[] = [
           rows.map((row) => (
             <div class="matrix__row">
               <div class="matrix__area">
-                <span set:html={row.area} />
-                {row.caveat && (
-                  <span class="matrix__caveat">{row.caveat}</span>
+                <span set:html={status.areas[row.id]} />
+                {status.caveats[row.id] && (
+                  <span class="matrix__caveat">{status.caveats[row.id]}</span>
                 )}
               </div>
-              <span class={`pill pill--${row.state}`}>{row.state}</span>
+              <span class={`pill pill--${row.state}`}>
+                {status.states[row.state]}
+              </span>
             </div>
           ))
         }
       </div>
 
       <p class="legend">
-        <span><span class="pill pill--done">done</span> shipped</span>
-        <span><span class="pill pill--next">next</span> being built</span>
-        <span><span class="pill pill--planned">planned</span> not started</span>
+        {
+          legendOrder.map((state) => (
+            <span>
+              <span class={`pill pill--${state}`}>{status.states[state]}</span>
+              {' '}
+              {status.legend[state]}
+            </span>
+          ))
+        }
       </p>
     </div>
   </div>

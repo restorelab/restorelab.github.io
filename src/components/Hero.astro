@@ -1,16 +1,31 @@
 ---
+import type { Lang, LandingCopy } from '../i18n/landing';
+import { landingPath, localize, otherLang } from '../i18n/landing';
+
 /**
- * Hero. The argument in one line, two actions, and the terminal transcript of
- * a real drill as the proof object — the output block from the README, kept
- * verbatim, including its RTO.
+ * Hero. L'argument en une ligne, deux actions, et la transcription de terminal
+ * d'un vrai exercice comme pièce à conviction — le bloc de sortie du README,
+ * gardé verbatim, RTO compris.
+ *
+ * La transcription n'est pas dans le dictionnaire de copie : c'est de la sortie
+ * de programme, et le binaire n'affiche que de l'anglais. La traduire
+ * mentirait.
  */
+interface Props {
+  copy: LandingCopy;
+  lang: Lang;
+}
+
+const { copy, lang } = Astro.props;
+const { hero, nav } = copy;
+
 const repo = 'https://github.com/restorelab/restorelab';
 ---
 
 <header class="hero">
   <div class="wrap">
-    <nav class="topbar" aria-label="Primary">
-      <a class="brand" href="/">
+    <nav class="topbar" aria-label={nav.primaryLabel}>
+      <a class="brand" href={localize('/', lang)}>
         <svg
           class="brand__mark"
           viewBox="0 0 128 128"
@@ -25,10 +40,25 @@ const repo = 'https://github.com/restorelab/restorelab';
         RestoreLab
       </a>
       <div class="topbar__nav">
-        <a href="/start/introduction/">Docs</a>
-        <a class="is-secondary" href="/start/quick-start/">Quick start</a>
-        <a class="is-secondary" href="/api/">API</a>
-        <a href={repo}>GitHub</a>
+        <a href={localize('/start/introduction/', lang)}>{nav.docs}</a>
+        <a class="is-secondary" href={localize('/start/quick-start/', lang)}>
+          {nav.quickStart}
+        </a>
+        <a class="is-secondary" href="/api/">{nav.api}</a>
+        <a href={repo}>{nav.github}</a>
+        <!--
+          Pas de `is-secondary` ici : cette classe masque le lien sous 38rem, et
+          la bascule de langue est le seul moyen de changer de langue depuis la
+          landing. La cacher sur mobile enfermerait le visiteur dans la langue
+          où il a atterri.
+        -->
+        <a
+          href={landingPath(otherLang(lang))}
+          lang={otherLang(lang)}
+          hreflang={otherLang(lang)}
+        >
+          {nav.otherLanguage}
+        </a>
       </div>
     </nav>
   </div>
@@ -36,28 +66,20 @@ const repo = 'https://github.com/restorelab/restorelab';
   <div class="wrap">
     <div class="hero__grid">
       <div>
-        <span class="tag">Alpha</span>
+        <span class="tag">{hero.tag}</span>
 
         <h1 class="hero__title">
-          <span class="is-quiet">Your backups are green.</span>
-          But can you actually recover?
+          <span class="is-quiet">{hero.titleQuiet}</span>
+          {hero.titleRest}
         </h1>
 
-        <p class="lede">
-          RestoreLab restores your backups into isolated environments, boots the
-          workloads, validates the services, measures your real recovery time,
-          and cleans everything up.
-        </p>
+        <p class="lede">{hero.lede}</p>
 
-        <p class="hero__kicker">
-          One binary, one command. With nothing configured, <code>serve</code> starts
-          anyway, prints a one-time setup address, and the browser does the
-          rest.
-        </p>
+        <p class="hero__kicker" set:html={hero.kicker} />
 
         <div class="hero__actions">
-          <a class="btn btn--primary" href="/start/introduction/">
-            Read the docs
+          <a class="btn btn--primary" href={localize('/start/introduction/', lang)}>
+            {hero.ctaDocs}
           </a>
           <a class="btn btn--ghost" href={repo}>
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -65,16 +87,12 @@ const repo = 'https://github.com/restorelab/restorelab';
                 d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
               ></path>
             </svg>
-            View on GitHub
+            {hero.ctaGithub}
           </a>
         </div>
 
         <p class="hero__meta">
-          <span>AGPL-3.0</span>
-          <span>Go 1.27+</span>
-          <span>Proxmox VE</span>
-          <span>Self-hosted</span>
-          <span>Single binary</span>
+          {hero.meta.map((item) => <span>{item}</span>)}
         </p>
       </div>
 
@@ -96,10 +114,7 @@ const repo = 'https://github.com/restorelab/restorelab';
 <span class="term__result">Recovery successful</span>
 RTO: <span class="term__rto">2m17s</span></pre>
         </div>
-        <p class="term__note">
-          One drill: a temporary copy of VM 101 restored onto the isolated
-          bridge, booted, checked, measured, and removed.
-        </p>
+        <p class="term__note">{hero.termNote}</p>
       </div>
     </div>
   </div>

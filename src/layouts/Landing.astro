@@ -1,0 +1,108 @@
+---
+import Hero from '../components/Hero.astro';
+import Contrast from '../components/Contrast.astro';
+import Chain from '../components/Chain.astro';
+import Screens from '../components/Screens.astro';
+import QuickStart from '../components/QuickStart.astro';
+import PlanSample from '../components/PlanSample.astro';
+import StatusTable from '../components/StatusTable.astro';
+import Footer from '../components/Footer.astro';
+
+import type { Lang, LandingCopy } from '../i18n/landing';
+import { landingPath } from '../i18n/landing';
+
+import '../styles/landing.css';
+
+/**
+ * Le squelette de la landing, partagé par `/` et `/fr/`.
+ *
+ * C'est une page Astro libre : Starlight possède tout ce qui est sous
+ * `src/content/docs/`, et rien ici n'est hydraté — le seul JavaScript de la
+ * page est celui des boutons de copie de `QuickStart.astro`.
+ *
+ * Le markup n'existe qu'une fois, quelle que soit la langue : le texte vient de
+ * `src/i18n/landing/`. Une évolution de design se fait donc à un seul endroit.
+ */
+interface Props {
+  copy: LandingCopy;
+  lang: Lang;
+}
+
+const { copy, lang } = Astro.props;
+const { meta } = copy;
+
+const canonical = new URL(landingPath(lang), Astro.site).href;
+const social = new URL('/img/dashboard/overview-light.png', Astro.site).href;
+
+/**
+ * Les alternatives de langue. `x-default` désigne l'anglais, qui est la locale
+ * racine du site.
+ */
+const alternates: { hreflang: string; lang: Lang }[] = [
+  { hreflang: 'en', lang: 'en' },
+  { hreflang: 'fr', lang: 'fr' },
+  { hreflang: 'x-default', lang: 'en' },
+];
+---
+
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{meta.title}</title>
+    <meta name="description" content={meta.description} />
+    <link rel="canonical" href={canonical} />
+    {
+      alternates.map((alt) => (
+        <link
+          rel="alternate"
+          hreflang={alt.hreflang}
+          href={new URL(landingPath(alt.lang), Astro.site).href}
+        />
+      ))
+    }
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RestoreLab" />
+    <meta property="og:locale" content={meta.ogLocale} />
+    <meta property="og:title" content={meta.title} />
+    <meta property="og:description" content={meta.description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={social} />
+    <meta property="og:image:width" content="2880" />
+    <meta property="og:image:height" content="1800" />
+    <meta property="og:image:alt" content={meta.ogImageAlt} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={meta.title} />
+    <meta name="twitter:description" content={meta.description} />
+    <meta name="twitter:image" content={social} />
+
+    <meta
+      name="theme-color"
+      content="#f6f7f7"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0b0f11"
+      media="(prefers-color-scheme: dark)"
+    />
+  </head>
+
+  <body>
+    <Hero {copy} {lang} />
+    <main>
+      <Contrast {copy} {lang} />
+      <Chain {copy} {lang} />
+      <Screens {copy} {lang} />
+      <QuickStart {copy} {lang} />
+      <PlanSample {copy} {lang} />
+      <StatusTable {copy} {lang} />
+    </main>
+    <Footer {copy} {lang} />
+  </body>
+</html>

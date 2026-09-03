@@ -1,59 +1,88 @@
 ---
+import type { Lang, LandingCopy } from '../i18n/landing';
+import { localize } from '../i18n/landing';
+
 /**
- * Closing call to action, then the four links a visitor may still want:
- * documentation, repository, licence, security policy.
+ * Appel à l'action de clôture, puis les quatre liens qu'un visiteur peut
+ * encore vouloir : documentation, dépôt, licence, politique de sécurité.
+ *
+ * Les cibles vivent ici, les libellés dans le dictionnaire : une URL n'est pas
+ * de la copie, et `/api/` en particulier ne prend pas de préfixe de langue.
  */
+interface Props {
+  copy: LandingCopy;
+  lang: Lang;
+}
+
+const { copy, lang } = Astro.props;
+const { footer } = copy;
+
 const repo = 'https://github.com/restorelab/restorelab';
+
+const docsLinks = [
+  { label: footer.links.introduction, href: localize('/start/introduction/', lang) },
+  { label: footer.links.quickStart, href: localize('/start/quick-start/', lang) },
+  { label: footer.links.recoveryPlans, href: localize('/guides/recovery-plans/', lang) },
+  { label: footer.links.httpApi, href: localize('/reference/http-api/', lang) },
+  { label: footer.links.apiReference, href: '/api/' },
+];
+
+const projectLinks = [
+  { label: footer.links.repository, href: repo },
+  { label: footer.links.securityPolicy, href: `${repo}/blob/master/SECURITY.md` },
+  { label: footer.links.contributing, href: `${repo}/blob/master/CONTRIBUTING.md` },
+  { label: footer.links.licence, href: `${repo}/blob/master/LICENSE` },
+];
 ---
 
 <footer class="footer">
   <div class="wrap cta">
-    <h2 class="cta__title">
-      Run one drill, and stop estimating your recovery time.
-    </h2>
+    <h2 class="cta__title">{footer.ctaTitle}</h2>
     <div class="hero__actions">
-      <a class="btn btn--primary" href="/start/quick-start/">Quick start</a>
-      <a class="btn btn--ghost" href={repo}>View on GitHub</a>
+      <a class="btn btn--primary" href={localize('/start/quick-start/', lang)}>
+        {footer.ctaQuickStart}
+      </a>
+      <a class="btn btn--ghost" href={repo}>{footer.ctaGithub}</a>
     </div>
   </div>
 
   <div class="wrap">
     <div class="footer__cols">
       <div class="footer__col">
-        <h2>Documentation</h2>
+        <h2>{footer.docsTitle}</h2>
         <ul>
-          <li><a href="/start/introduction/">Introduction</a></li>
-          <li><a href="/start/quick-start/">Quick start</a></li>
-          <li><a href="/guides/recovery-plans/">Recovery plans</a></li>
-          <li><a href="/reference/http-api/">HTTP API</a></li>
-          <li><a href="/api/">API reference</a></li>
+          {
+            docsLinks.map((link) => (
+              <li>
+                <a href={link.href}>{link.label}</a>
+              </li>
+            ))
+          }
         </ul>
       </div>
 
       <div class="footer__col">
-        <h2>Project</h2>
+        <h2>{footer.projectTitle}</h2>
         <ul>
-          <li><a href={repo}>Repository</a></li>
-          <li><a href={`${repo}/blob/master/SECURITY.md`}>Security policy</a></li>
-          <li>
-            <a href={`${repo}/blob/master/CONTRIBUTING.md`}>Contributing</a>
-          </li>
-          <li><a href={`${repo}/blob/master/LICENSE`}>Licence, AGPL-3.0</a></li>
+          {
+            projectLinks.map((link) => (
+              <li>
+                <a href={link.href}>{link.label}</a>
+              </li>
+            ))
+          }
         </ul>
       </div>
 
       <div class="footer__col">
-        <h2>Licence</h2>
-        <p class="prose" style="font-size: 0.9rem;">
-          RestoreLab is free to self-host, modify and run. If you offer it as a
-          network service, the same freedoms must reach your users.
-        </p>
+        <h2>{footer.licenceTitle}</h2>
+        <p class="prose" style="font-size: 0.9rem;">{footer.licenceBody}</p>
       </div>
     </div>
 
     <div class="footer__base">
-      <span>RestoreLab — AGPL-3.0</span>
-      <span>Automated recovery drills for Proxmox VE</span>
+      <span>{footer.baseLeft}</span>
+      <span>{footer.baseRight}</span>
     </div>
   </div>
 </footer>

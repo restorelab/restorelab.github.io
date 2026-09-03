@@ -1,52 +1,39 @@
 ---
+import type { Lang, LandingCopy, ShotId } from '../i18n/landing';
+
 /**
- * Dashboard screenshots, captured by `scripts/screenshots.mjs` against a demo
- * database. Light and dark variants are served by `prefers-color-scheme`
- * alone; there is no JavaScript on this page beyond the copy buttons.
+ * Captures du tableau de bord, prises par `scripts/screenshots.mjs` contre une
+ * base de démonstration. Les variantes claire et sombre sont servies par
+ * `prefers-color-scheme` seul ; il n'y a aucun JavaScript sur cette page en
+ * dehors des boutons de copie.
  *
- * Sources are 2880x1800 (a 1440x900 viewport at deviceScaleFactor 2), and the
- * intrinsic size is declared so the layout never shifts as they load.
+ * Les sources sont en 2880x1800 (une fenêtre 1440x900 à deviceScaleFactor 2),
+ * et la taille intrinsèque est déclarée pour que la mise en page ne saute
+ * jamais au chargement.
  */
-const thumbs = [
-  {
-    name: 'history',
-    caption: 'History',
-    alt: 'RestoreLab drill history: past recovery drills with their workload, outcome and measured recovery time.',
-  },
-  {
-    name: 'workloads',
-    caption: 'Workloads',
-    alt: 'The workloads screen: every virtual machine discovered on the cluster, its backups and its recovery confidence score.',
-  },
-  {
-    name: 'diagnostics',
-    caption: 'Diagnostics',
-    alt: 'The diagnostics screen, reporting whether the cluster, the storage and the isolated bridge are configured correctly.',
-  },
-];
+interface Props {
+  copy: LandingCopy;
+  lang: Lang;
+}
+
+const { copy } = Astro.props;
+const { screens } = copy;
+
+/** Les trois vignettes, dans l'ordre. Le nom est celui du fichier image. */
+const thumbs: ShotId[] = ['history', 'workloads', 'diagnostics'];
 ---
 
 <section class="section" id="dashboard">
   <div class="wrap section__grid">
     <div class="section__aside">
       <span class="section__index">03</span>
-      <span class="section__label">The dashboard</span>
+      <span class="section__label">{screens.label}</span>
     </div>
 
     <div>
-      <h2 class="section__title">The dashboard runs the tool</h2>
-      <p class="prose">
-        It shows what is running, what has run, what is protected and whether
-        the cluster is configured correctly, with a drill&rsquo;s phases filling
-        in live while it happens — and it starts drills, cancels them, destroys
-        what they leave behind, and writes the plan catalogue with the binary
-        itself validating each document as you type.
-      </p>
-      <p class="prose">
-        Proving a backup can recover a service is worth doing by an operations
-        team, not only by whoever is comfortable in a terminal. The command line
-        keeps every capability; it is what automation drives.
-      </p>
+      <h2 class="section__title">{screens.title}</h2>
+      <p class="prose">{screens.intro}</p>
+      <p class="prose">{screens.intro2}</p>
     </div>
   </div>
 
@@ -59,16 +46,14 @@ const thumbs = [
         />
         <img
           src="/img/dashboard/overview-light.png"
-          alt="The RestoreLab overview screen: the drill currently running, the recent drills with their outcome and measured recovery time, and the state of the cluster."
+          alt={screens.shots.overview.alt}
           width="2880"
           height="1800"
         />
       </picture>
       <figcaption class="shot__caption">
-        <span class="shot__name">Overview</span>
-        <span class="shot__note">
-          What is running, what has run, and how long recovery took.
-        </span>
+        <span class="shot__name">{screens.shots.overview.caption}</span>
+        <span class="shot__note">{screens.shots.overview.note}</span>
       </figcaption>
     </figure>
 
@@ -80,7 +65,7 @@ const thumbs = [
         />
         <img
           src="/img/dashboard/drill-light.png"
-          alt="A finished drill: its phases with their durations, the recovery time against the plan's target, and the checks, one of which failed."
+          alt={screens.shots.drill.alt}
           width="2880"
           height="1800"
           loading="lazy"
@@ -88,26 +73,23 @@ const thumbs = [
         />
       </picture>
       <figcaption class="shot__caption">
-        <span class="shot__name">A drill, in detail</span>
-        <span class="shot__note">
-          Phase by phase, with the recovery time set against the target and the
-          check that did not come back.
-        </span>
+        <span class="shot__name">{screens.shots.drill.caption}</span>
+        <span class="shot__note">{screens.shots.drill.note}</span>
       </figcaption>
     </figure>
 
     <div class="thumbs">
       {
-        thumbs.map((shot) => (
+        thumbs.map((id) => (
           <figure class="shot">
             <picture>
               <source
-                srcset={`/img/dashboard/${shot.name}-dark.png`}
+                srcset={`/img/dashboard/${id}-dark.png`}
                 media="(prefers-color-scheme: dark)"
               />
               <img
-                src={`/img/dashboard/${shot.name}-light.png`}
-                alt={shot.alt}
+                src={`/img/dashboard/${id}-light.png`}
+                alt={screens.shots[id].alt}
                 width="2880"
                 height="1800"
                 loading="lazy"
@@ -115,7 +97,7 @@ const thumbs = [
               />
             </picture>
             <figcaption class="shot__caption">
-              <span class="shot__name">{shot.caption}</span>
+              <span class="shot__name">{screens.shots[id].caption}</span>
             </figcaption>
           </figure>
         ))

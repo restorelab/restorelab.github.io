@@ -1,44 +1,41 @@
 ---
+import type { Lang, LandingCopy } from '../i18n/landing';
+
 /**
- * The chain a drill walks, from the README. Rendered as wrapping tokens rather
- * than a copied text block, so it stays readable down to a phone.
+ * La chaîne qu'un exercice parcourt, tirée du README. Rendue en jetons qui
+ * passent à la ligne plutôt qu'en bloc de texte recopié, pour rester lisible
+ * jusqu'au téléphone.
  */
-const steps = [
-  'backup exists',
-  'available',
-  'restore succeeds',
-  'guest boots',
-  'OS reachable',
-  'services start',
-  'application responds',
-  'dependencies usable',
-  'RTO measured',
-];
+interface Props {
+  copy: LandingCopy;
+  lang: Lang;
+}
+
+const { copy } = Astro.props;
+const { chain } = copy;
 ---
 
 <section class="section" id="chain">
   <div class="wrap section__grid">
     <div class="section__aside">
       <span class="section__index">02</span>
-      <span class="section__label">The chain</span>
+      <span class="section__label">{chain.label}</span>
     </div>
 
     <div>
-      <h2 class="section__title">Nine links, and a drill walks all of them</h2>
-      <p class="prose" style="margin-bottom: 1.75rem;">
-        A drill stops at the first link that does not hold, and reports which
-        one. When every link holds, the recovery time is the measurement, not an
-        estimate.
-      </p>
+      <h2 class="section__title">{chain.title}</h2>
+      <p class="prose" style="margin-bottom: 1.75rem;">{chain.intro}</p>
 
       <ol class="chain">
         {
-          steps.map((step, i) => (
+          chain.steps.map((step, i) => (
             <li>
-              <span class={`chain__step${i === steps.length - 1 ? ' is-last' : ''}`}>
+              <span
+                class={`chain__step${i === chain.steps.length - 1 ? ' is-last' : ''}`}
+              >
                 {step}
               </span>
-              {i < steps.length - 1 && (
+              {i < chain.steps.length - 1 && (
                 <span class="chain__arrow" aria-hidden="true">
                   →
                 </span>
@@ -49,27 +46,14 @@ const steps = [
       </ol>
 
       <div class="notes">
-        <div class="note">
-          <h3 class="note__title">Isolated by default</h3>
-          <p>
-            Every drill runs against a temporary workload on an isolated
-            network, never against production. Restores land on a dedicated
-            bridge with no uplink, the network configuration inherited from the
-            backup is rewritten, and a run is refused when isolation cannot be
-            verified.
-          </p>
-        </div>
-
-        <div class="note">
-          <h3 class="note__title">Never touches production</h3>
-          <p>
-            Every temporary resource is created by RestoreLab with <code
-              class="mono">restorelab_managed=true</code> metadata, and
-            delete refuses any workload that does not carry it. Restores go to a
-            reserved VMID range — 9000–9999 by default — never over an existing
-            workload.
-          </p>
-        </div>
+        {
+          chain.notes.map((note) => (
+            <div class="note">
+              <h3 class="note__title">{note.title}</h3>
+              <p set:html={note.body} />
+            </div>
+          ))
+        }
       </div>
     </div>
   </div>

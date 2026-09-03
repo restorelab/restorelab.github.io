@@ -1,0 +1,11 @@
+---
+import Landing from '../../layouts/Landing.astro';
+import { fr } from '../../i18n/landing';
+
+/**
+ * La landing française, servie sous `/fr/`. Même markup que l'anglaise : seul
+ * le dictionnaire change.
+ */
+---
+
+<Landing copy={fr} lang="fr" />

@@ -1,10 +1,24 @@
 ---
 import { Code } from 'astro:components';
+import type { Lang, LandingCopy } from '../i18n/landing';
+import { localize } from '../i18n/landing';
 
 /**
- * A recovery plan, verbatim from the README. Highlighted at build time by
- * Shiki through `astro:components` — no client-side highlighter.
+ * Un plan de restauration, verbatim depuis le README. Coloré au build par
+ * Shiki à travers `astro:components` — aucun coloriseur côté client.
+ *
+ * Le document YAML n'est pas dans le dictionnaire de copie, commentaire
+ * compris : il reproduit `examples/plans/postgres-prod.yaml`, un vrai fichier
+ * du dépôt produit. Le traduire donnerait un fichier qui n'existe pas.
  */
+interface Props {
+  copy: LandingCopy;
+  lang: Lang;
+}
+
+const { copy, lang } = Astro.props;
+const { plan: planCopy, copyButton } = copy;
+
 const shiki = {
   themes: { light: 'github-light', dark: 'github-dark' },
   defaultColor: false as const,
@@ -56,19 +70,12 @@ rto_target: 5m
   <div class="wrap section__grid">
     <div class="section__aside">
       <span class="section__index">05</span>
-      <span class="section__label">A recovery plan</span>
+      <span class="section__label">{planCopy.label}</span>
     </div>
 
     <div>
-      <h2 class="section__title">
-        What to restore, where, and what must be true afterwards
-      </h2>
-      <p class="prose">
-        A plan is one YAML document, stored in the database and validated by the
-        binary. It names the workload, which backup to take, where the copy
-        lands, what must answer once it boots, and the recovery time it is
-        measured against.
-      </p>
+      <h2 class="section__title">{planCopy.title}</h2>
+      <p class="prose">{planCopy.intro}</p>
 
       <div class="plan">
         <div class="codeblock">
@@ -81,16 +88,19 @@ rto_target: 5m
             class="copy"
             type="button"
             data-copy={run}
-            aria-label={`Copy: ${run}`}
+            aria-label={`${copyButton.ariaPrefix} ${run}`}
+            data-label-copy={copyButton.label}
+            data-label-copied={copyButton.copied}
+            data-label-failed={copyButton.failed}
           >
-            Copy
+            {copyButton.label}
           </button>
         </div>
       </div>
 
       <p class="linkrow">
-        <a href="/guides/recovery-plans/">
-          Plan reference and every check type →
+        <a href={localize('/guides/recovery-plans/', lang)}>
+          {planCopy.moreLink}
         </a>
       </p>
     </div>
