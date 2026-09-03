@@ -14,3 +14,6 @@ demo.db-*
 
 # Checkout temporaire du dépôt principal, posé par le workflow de sync
 .restorelab-src/
+
+# Fichier de reprise de session, local
+/STATE.md
