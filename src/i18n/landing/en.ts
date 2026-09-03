@@ -211,7 +211,8 @@ bin/restorelab recovery test 101`,
       setupInBrowser:
         'First-run setup in the browser, replacing the install commands',
       scheduledDrills:
-        'Scheduled drills, SSH / PostgreSQL / MySQL checks, notifications',
+        "Scheduled drills: a plan's cron queues its own drills, unattended",
+      moreChecks: 'SSH / PostgreSQL / MySQL checks, notifications',
       remoteProbes: 'Remote probes, RBAC, OIDC',
     },
     caveats: {

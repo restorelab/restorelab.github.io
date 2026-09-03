@@ -83,6 +83,11 @@ exercice se remplissant en direct pendant qu’il se déroule — et il lance de
 exercices, les annule, détruit ce qu’ils laissent derrière eux, et rédige le
 catalogue de plans, le binaire lui-même validant chaque document à la frappe.
 
+Un plan n’a plus besoin d’être lancé à la main. Un plan porteur d’un
+`schedule` met ses propres exercices en file, et un créneau échu pendant que le
+serveur était éteint est ignoré plutôt que rattrapé des heures plus tard — voir
+[la planification](/fr/guides/scheduling/).
+
 :::caution[Deux choses n’ont jamais vu de vrai matériel]
 La découverte **Proxmox Backup Server** et les **contrôles réseau** sont
 implémentés et couverts par des tests unitaires, mais n’ont jamais été exécutés
@@ -113,7 +118,8 @@ Tout le reste a été piloté contre un cluster Proxmox VE 9 en service.
 | Lancement et annulation d’exercices depuis le navigateur, et destruction de ce qu’ils laissent derrière eux | livré |
 | Rédaction du catalogue de plans dans le navigateur, validé par le binaire à la frappe | livré |
 | Installation initiale dans le navigateur, en remplacement des commandes d’installation | livré |
-| Exercices planifiés, contrôles SSH / PostgreSQL / MySQL, notifications | en cours |
+| Exercices planifiés : le cron d’un plan met ses propres exercices en file, sans personne | livré |
+| Contrôles SSH / PostgreSQL / MySQL, notifications | en cours |
 | Sondes distantes, RBAC, OIDC | prévu |
 
 L’organisation des paquets derrière tout cela, et l’ordre dans lequel la feuille

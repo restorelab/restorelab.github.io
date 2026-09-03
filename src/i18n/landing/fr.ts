@@ -224,7 +224,8 @@ bin/restorelab recovery test 101`,
       setupInBrowser:
         'Installation initiale dans le navigateur, en remplacement des commandes d’installation',
       scheduledDrills:
-        'Exercices planifiés, contrôles SSH / PostgreSQL / MySQL, notifications',
+        'Exercices planifiés : le cron d’un plan met ses propres exercices en file, sans personne',
+      moreChecks: 'Contrôles SSH / PostgreSQL / MySQL, notifications',
       remoteProbes: 'Sondes distantes, RBAC, OIDC',
     },
     caveats: {

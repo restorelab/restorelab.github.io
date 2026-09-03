@@ -44,6 +44,7 @@ export type StatusRowId =
   | 'planCatalogueInBrowser'
   | 'setupInBrowser'
   | 'scheduledDrills'
+  | 'moreChecks'
   | 'remoteProbes';
 
 /** Les captures du tableau de bord, désignées par leur nom de fichier. */

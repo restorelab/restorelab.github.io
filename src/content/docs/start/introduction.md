@@ -78,6 +78,11 @@ in live while it happens — and it starts drills, cancels them, destroys what
 they leave behind, and writes the plan catalogue with the binary itself
 validating each document as you type.
 
+A plan no longer has to be launched by hand. A plan carrying a `schedule`
+queues its own drills, and a slot that comes due while the server was off is
+skipped rather than caught up hours later — see
+[scheduling](/guides/scheduling/).
+
 :::caution[Two things have never met real hardware]
 **Proxmox Backup Server** discovery and the **network checks** are implemented
 and unit-tested, but have never run against real infrastructure, because the
@@ -107,7 +112,8 @@ Everything else has been driven against a live Proxmox VE 9 cluster.
 | Launching and cancelling drills from the browser, and destroying what they leave behind | done |
 | Writing the plan catalogue in the browser, validated by the binary as you type | done |
 | First-run setup in the browser, replacing the install commands | done |
-| Scheduled drills, SSH / PostgreSQL / MySQL checks, notifications | next |
+| Scheduled drills: a plan's cron queues its own drills, unattended | done |
+| SSH / PostgreSQL / MySQL checks, notifications | next |
 | Remote probes, RBAC, OIDC | planned |
 
 The package layout behind all of this, and the order the roadmap is being
