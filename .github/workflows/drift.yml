@@ -1,8 +1,7 @@
 # Dit chaque jour si le site a pris du retard sur le produit.
 #
 # La documentation, la référence CLI, le contrat d'API et le numéro de version
-# viennent tous de `restorelab/restorelab`, qui est privé : le build public ne
-# peut pas les comparer à leur source. Le hook `pre-push` couvre le cas de
+# viennent tous de `restorelab/restorelab`. Le hook `pre-push` couvre le cas de
 # quelqu'un qui publie ; celui-ci couvre le cas inverse, et c'est le plus
 # fréquent — le produit avance, personne ne touche au site, et il vieillit sans
 # que rien ne le dise.
@@ -11,15 +10,10 @@
 # de relire ce qui a changé, et un commit automatique sur une landing rédigée à
 # la main ferait plus de dégâts qu'il n'en éviterait.
 #
-# ACTIVATION : le job s'ignore tant que le secret `RESTORELAB_SRC_TOKEN` n'est
-# pas posé — un PAT fine-grained, Contents en lecture seule sur
-# `restorelab/restorelab`, rien d'autre. Sans lui il n'y a rien à cloner, et
-# échouer tous les jours pour cette raison apprendrait juste à ignorer l'alerte.
-#
-# Le secret vit dans un dépôt public : personne d'autre que le propriétaire ne
-# pousse ici et aucun workflow ne s'exécute sur une pull request, donc il n'est
-# pas exposé à du code tiers. À reconsidérer si ce dépôt accepte un jour des
-# contributions extérieures.
+# Aucun secret n'est nécessaire depuis que `restorelab/restorelab` est public :
+# le `GITHUB_TOKEN` par défaut suffit à le cloner. Si le dépôt redevenait privé,
+# il faudrait un PAT fine-grained en `RESTORELAB_SRC_TOKEN`, Contents en lecture
+# seule, passé au second `checkout`.
 
 name: Drift
 
@@ -43,17 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - id: token
-        run: |
-          if [ -n "${{ secrets.RESTORELAB_SRC_TOKEN }}" ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::RESTORELAB_SRC_TOKEN absent : contrôle de dérive ignoré."
-          fi
-
       - uses: actions/setup-node@v7
-        if: steps.token.outputs.present == 'true'
         with:
           node-version: 22
           cache: npm
@@ -61,19 +45,15 @@ jobs:
       # `npm install`, pas `npm ci` : même raison que dans deploy.yml, le
       # lockfile est écrit sous Windows et n'a pas les replis wasm de Linux.
       - run: npm install --no-audit --no-fund
-        if: steps.token.outputs.present == 'true'
 
       - uses: actions/checkout@v7
-        if: steps.token.outputs.present == 'true'
         with:
           repository: restorelab/restorelab
-          token: ${{ secrets.RESTORELAB_SRC_TOKEN }}
           path: .restorelab-src
           # Les tags sont ce qui donne la version publiée.
           fetch-depth: 0
 
       - id: check
-        if: steps.token.outputs.present == 'true'
         continue-on-error: true
         env:
           RESTORELAB_REPO: .restorelab-src
@@ -102,7 +82,7 @@ jobs:
           echo "drifted=$status" >> "$GITHUB_OUTPUT"
 
       - name: Ouvrir ou mettre à jour l'issue
-        if: steps.token.outputs.present == 'true' && steps.check.outputs.drifted == '1'
+        if: steps.check.outputs.drifted == '1'
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: 'Le site a pris du retard sur RestoreLab'
