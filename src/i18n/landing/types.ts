@@ -123,6 +123,13 @@ export interface LandingCopy {
     label: string;
     title: string;
     intro: string;
+    /**
+     * Avertissement affiché au-dessus des étapes. **Temporaire** : il dit que
+     * les commandes ne peuvent pas encore fonctionner parce que le dépôt
+     * produit est privé — l'image répond 403, les archives 404. À retirer des
+     * deux dictionnaires, avec ce champ, le jour de l'ouverture.
+     */
+    notice?: Html;
     /** Le texte de l'étape ; la commande vit dans le composant. */
     steps: string[];
     setupIntro: Html;

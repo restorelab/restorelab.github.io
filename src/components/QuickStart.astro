@@ -73,6 +73,14 @@ const copyLabels = {
       <h2 class="section__title">{quickStart.title}</h2>
       <p class="prose">{quickStart.intro}</p>
 
+      {
+        quickStart.notice && (
+          <div class="caveat" style="margin-top: 1.5rem;">
+            <p set:html={quickStart.notice} />
+          </div>
+        )
+      }
+
       <div class="steps">
         {
           steps.map((step) => (

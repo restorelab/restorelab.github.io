@@ -132,6 +132,8 @@ export const en: LandingCopy = {
     title: 'One command, then a browser',
     intro:
       'One binary, no agent to install on the guests, no daemon to keep alive beside it. That is the whole of it.',
+    notice:
+      'The archive works today. The <code class="mono">ghcr.io</code> image is not published publicly yet — that setting is separate from the repository, and it is the only one still closed.',
     steps: [
       'Run it. The image carries the dashboard, and the volume keeps the configuration and the master key.',
       'Or one file, from the latest release. No runtime, and a checksum file beside it.',

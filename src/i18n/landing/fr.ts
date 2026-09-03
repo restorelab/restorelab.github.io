@@ -139,6 +139,8 @@ export const fr: LandingCopy = {
     title: 'Une commande, puis un navigateur',
     intro:
       'Un binaire, aucun agent à installer sur les invités, aucun démon à maintenir en vie à côté. C’est tout.',
+    notice:
+      'L’archive fonctionne dès aujourd’hui. L’image <code class="mono">ghcr.io</code> n’est pas encore publiée — ce réglage est indépendant de celui du dépôt, et c’est le seul qui reste fermé.',
     steps: [
       'Lancez-le. L’image embarque le tableau de bord, et le volume conserve la configuration et la clé maîtresse.',
       'Ou un seul fichier, depuis la dernière version. Aucun runtime, et une somme de contrôle à côté.',

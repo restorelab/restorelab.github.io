@@ -5,6 +5,12 @@ sidebar:
   order: 2
 ---
 
+:::note[The container image is not published yet]
+The archive and building from source work today. The `ghcr.io` image is not
+public yet — that setting is separate from the repository, and it is the only
+one still closed.
+:::
+
 ## Run it
 
 ```bash
