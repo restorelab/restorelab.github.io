@@ -62,6 +62,11 @@ tags:
     description: >-
       The stored catalogue of recovery plans: what to restore, where, and what
       must be true afterwards.
+  - name: Schedule
+    description: >-
+      What the scheduler has decided, and what it is about to do. Read-only: a
+      slot is decided by the scheduler, which queues the drill in the same
+      transaction, and an HTTP handler has no business doing that.
   - name: Session
     description: >-
       The browser credential. A dashboard exchanges a token for a cookie
@@ -854,7 +859,7 @@ paths:
                   type: string
                   description: An API token secret, as `restorelab token create` printed it.
                   pattern: '^rl_[A-Za-z0-9_-]{43}$'
-                  examples: ['rl_EXAMPLE_TOKEN_NOT_A_REAL_SECRET_0123456789']
+                  examples: ['rl_EXAMPLE_TOKEN_NOT_A_REAL_SECRET_01234567890']
       responses:
         '200':
           description: The session is open, and the cookie is set.
@@ -1247,6 +1252,97 @@ paths:
         '503':
           $ref: '#/components/responses/HistoryUnavailable'
 
+  /schedule:
+    get:
+      operationId: getSchedule
+      summary: List the plans that drill themselves
+      description: >-
+        The plans carrying a `schedule`, and when each one drills next. A plan
+        with no schedule is absent from the listing: most plans have none, and
+        padding the listing with them would bury the handful that matter.
+
+
+        A plan whose stored document or cron expression no longer parses
+        **stays in the listing**, carrying its `error` and a null
+        `next_slot_at`. Dropping it would read as "this plan is fine, it just
+        is not scheduled" for a machine that has silently stopped being tested.
+      tags:
+        - Schedule
+      responses:
+        '200':
+          description: The plans that drill themselves.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: >-
+                  The scheduled plans. It reuses the listing envelope so a
+                  client never meets two shapes, but it neither pages nor takes
+                  a cursor: a catalogue holds dozens of plans and few carry a
+                  schedule.
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    description: One entry per scheduled plan.
+                    items:
+                      $ref: '#/components/schemas/ScheduledPlan'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /schedule/slots:
+    get:
+      operationId: listScheduleSlots
+      summary: List the slots the scheduler has decided
+      description: >-
+        The decided slots, most recent first.
+
+
+        Skipped slots are included, and that is the point of the route: a
+        skipped slot produced no run, so "why was this machine not tested" is a
+        question the run history alone cannot answer. `workload` is the filter
+        that question usually wants — a machine can be covered by more than one
+        plan, and this resolves them all in one query.
+      tags:
+        - Schedule
+      parameters:
+        - $ref: '#/components/parameters/PlanQuery'
+        - $ref: '#/components/parameters/WorkloadFilter'
+        - $ref: '#/components/parameters/SlotLimit'
+      responses:
+        '200':
+          description: The decided slots.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A page of decided slots, most recent first.
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    description: The slots, newest first.
+                    items:
+                      $ref: '#/components/schemas/ScheduleSlot'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PlanNotFound'
+        '409':
+          $ref: '#/components/responses/AmbiguousPlanId'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
   /providers:
     get:
       operationId: listProviders
@@ -1539,6 +1635,32 @@ components:
       schema:
         type: string
       example: postgres-prod
+
+    PlanQuery:
+      name: plan
+      in: query
+      required: false
+      description: >-
+        Keep only the slots of one plan, named by its exact name, its exact id,
+        or a unique prefix of its id. A prefix matching several plans is a
+        `409`.
+      schema:
+        type: string
+      example: postgres-prod
+
+    SlotLimit:
+      name: limit
+      in: query
+      required: false
+      description: >-
+        How many slots to return, newest first. Defaults to 50. Zero or
+        negative is refused, because it means the caller computed it and got it
+        wrong.
+      schema:
+        type: integer
+        minimum: 1
+        default: 50
+      example: 100
 
   responses:
     InvalidParameter:
@@ -2861,7 +2983,7 @@ components:
             here, and never readable again**: only its hash is stored. Exchange it
             for a session at `POST /session`, and revoke it like any other with
             `restorelab token revoke`.
-          examples: ['rl_EXAMPLE_TOKEN_NOT_A_REAL_SECRET_0123456789']
+          examples: ['rl_EXAMPLE_TOKEN_NOT_A_REAL_SECRET_01234567890']
         token_name:
           type: string
           description: What that token is called in `restorelab token list`.
@@ -2885,3 +3007,107 @@ components:
         document in this API that carries anything extra - widening the shared
         one would have put an empty `steps` on every error the API has ever
         returned.
+
+    ScheduledPlan:
+      type: object
+      description: One plan that drills itself, and what is about to happen to it.
+      required:
+        - plan_id
+        - name
+        - workload_id
+        - schedule
+        - next_slot_at
+      properties:
+        plan_id:
+          type: string
+          description: The plan's id.
+          examples: ['1f0b2a44-0000-4000-8000-00000000000a']
+        name:
+          type: string
+          description: The plan's name.
+          examples: [web-tier]
+        workload_id:
+          type: string
+          description: The workload this plan drills.
+          examples: ['110']
+        schedule:
+          type: string
+          description: >-
+            The plan's cron expression. Empty when the stored document could
+            not be parsed at all, in which case `error` says so.
+          examples: ['0 3 * * *']
+        timezone:
+          type: string
+          description: >-
+            The zone the cron is read in. Absent when the plan names none, and
+            the server's own zone applies.
+          examples: [Europe/Paris]
+        next_slot_at:
+          type: [string, 'null']
+          format: date-time
+          description: >-
+            When this plan drills next, or `null` when its schedule could not
+            be read — `error` then says why. "Nothing is coming" and "we could
+            not work it out" are different answers, so they are different
+            fields rather than one empty string.
+          examples: ['2026-09-04T03:00:00Z']
+        error:
+          type: string
+          description: >-
+            Why `next_slot_at` is null, or why the last slot could not be read.
+            Absent when nothing went wrong.
+          examples: ['the stored plan is not valid: yaml: line 4: mapping values are not allowed']
+        last_slot:
+          $ref: '#/components/schemas/ScheduleSlot'
+
+    ScheduleSlot:
+      type: object
+      description: >-
+        One slot the scheduler decided. A slot is a moment the cron came due,
+        and the decision taken about it — not a drill.
+      required:
+        - plan_id
+        - slot_at
+        - decided_at
+        - outcome
+      properties:
+        plan_id:
+          type: string
+          description: The plan the slot belongs to.
+          examples: ['1f0b2a44-0000-4000-8000-00000000000a']
+        plan_name:
+          type: string
+          description: >-
+            The plan's name, resolved for convenience. Absent when the plan has
+            since been deleted.
+          examples: [web-tier]
+        slot_at:
+          type: string
+          format: date-time
+          description: The moment the cron came due.
+          examples: ['2026-09-01T04:00:00Z']
+        decided_at:
+          type: string
+          format: date-time
+          description: >-
+            When the scheduler acted on the slot. Later than `slot_at` when the
+            server was not running at the time.
+          examples: ['2026-09-01T10:00:00Z']
+        outcome:
+          type: string
+          enum: [queued, skipped]
+          description: >-
+            What the scheduler did. A queued slot names its `run_id`; a skipped
+            one carries a `reason` and no run.
+          examples: [skipped]
+        reason:
+          type: string
+          description: >-
+            Why a slot was skipped. This row is the only place "why was this
+            machine not tested" can be answered from, because a skipped slot
+            produced no run to look at.
+          examples: ['the slot was 6h0m late, past the 2h grace period']
+        run_id:
+          type: string
+          description: The drill a queued slot created. Absent on a skipped slot.
+          examples: ['9d2c1b70-0000-4000-8000-00000000000b']
