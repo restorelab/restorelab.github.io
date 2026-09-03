@@ -10,6 +10,11 @@ import { landingPath, localize, otherLang } from '../i18n/landing';
  * La transcription n'est pas dans le dictionnaire de copie : c'est de la sortie
  * de programme, et le binaire n'affiche que de l'anglais. La traduire
  * mentirait.
+ *
+ * La bascule de langue, dans la barre du haut, ne porte volontairement pas
+ * `is-secondary` : cette classe masque un lien sous 38 rem, et c'est le seul
+ * moyen de changer de langue depuis la landing — la cacher enfermerait un
+ * visiteur mobile dans la langue où il a atterri.
  */
 interface Props {
   copy: LandingCopy;
@@ -46,12 +51,6 @@ const repo = 'https://github.com/restorelab/restorelab';
         </a>
         <a class="is-secondary" href="/api/">{nav.api}</a>
         <a href={repo}>{nav.github}</a>
-        <!--
-          Pas de `is-secondary` ici : cette classe masque le lien sous 38rem, et
-          la bascule de langue est le seul moyen de changer de langue depuis la
-          landing. La cacher sur mobile enfermerait le visiteur dans la langue
-          où il a atterri.
-        -->
         <a
           href={landingPath(otherLang(lang))}
           lang={otherLang(lang)}
