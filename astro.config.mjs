@@ -39,10 +39,11 @@ export default defineConfig({
         },
       ],
 
-      // Le cube du logo, et lui seul : le symbole complet (engrenage, bouclier,
-      // orbite, coche) devient illisible sous 24 px — mesuré — et c'est
-      // précisément la taille d'un favicon et d'une marque de navigation.
-      logo: { src: './src/assets/logo-cube.webp' },
+      // Le symbole complet du logo. Il tient dans cet en-tête et dans la barre
+      // de la landing, sur les deux thèmes — vérifié sur rendu réel, pas sur
+      // un agrandissement au plus proche voisin, qui exagère la pixellisation.
+      // Le favicon, lui, garde le cube seul : à 16 px le symbole est une tache.
+      logo: { src: './src/assets/logo-symbol.webp' },
       favicon: '/favicon-32.png',
 
       head: [

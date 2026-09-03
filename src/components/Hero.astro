@@ -1,6 +1,6 @@
 ---
 import { Image } from 'astro:assets';
-import cube from '../assets/logo-cube.webp';
+import symbol from '../assets/logo-symbol.webp';
 
 import type { Lang, LandingCopy } from '../i18n/landing';
 import { landingPath, localize, otherLang } from '../i18n/landing';
@@ -36,7 +36,7 @@ const repo = 'https://github.com/restorelab/restorelab';
       <a class="brand" href={localize('/', lang)}>
         <Image
           class="brand__mark"
-          src={cube}
+          src={symbol}
           width={60}
           height={60}
           loading="eager"

@@ -259,10 +259,12 @@ img {
 }
 
 /* La marque est une image matricielle depuis que le vrai logo est en place :
-   plus de `color`, qui ne teintait qu'un SVG en `currentColor`. */
+   plus de `color`, qui ne teintait qu'un SVG en `currentColor`.
+   1.75rem et pas moins : c'est la taille a partir de laquelle l'engrenage et
+   la coche du symbole se distinguent encore, mesure faite sur rendu reel. */
 .brand__mark {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.75rem;
+  height: 1.75rem;
   flex: none;
 }
 
