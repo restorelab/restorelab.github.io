@@ -190,7 +190,7 @@ Apply pending schema migrations
 Applies pending schema migrations.
 
 The embedded SQLite database migrates itself whenever RestoreLab opens it, so
-this command is mostly for a PostgreSQL history — which is deliberately never
+this command is mostly for a PostgreSQL history, which is deliberately never
 migrated as a side effect of running a command, because a shared database may
 serve more than this instance.
 
@@ -380,7 +380,7 @@ Creates a Linux bridge with no ports and no gateway on a Proxmox node: a
 switch that goes nowhere, which is what keeps a restored production clone from
 reaching anything.
 
-This needs administrator credentials, not RestoreLab's service token — the
+This needs administrator credentials, not RestoreLab's service token: the
 token is deliberately not allowed to reconfigure your node's network. The
 password is used once, in memory, and never stored.
 
