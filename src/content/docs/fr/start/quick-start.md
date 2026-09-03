@@ -5,12 +5,6 @@ sidebar:
   order: 2
 ---
 
-:::note[L’image conteneur n’est pas encore publiée]
-L’archive et la compilation depuis les sources fonctionnent dès aujourd’hui.
-L’image `ghcr.io` n’est pas encore publique — ce réglage est indépendant de
-celui du dépôt, et c’est le seul qui reste fermé.
-:::
-
 ## Le lancer
 
 ```bash
