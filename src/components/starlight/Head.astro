@@ -1,0 +1,39 @@
+---
+/**
+ * Le `<head>` de Starlight, dont on retire les alternatives de langue sur la
+ * référence d'API.
+ *
+ * Starlight émet des `<link rel="alternate" hreflang="...">` pour chaque locale
+ * configurée, en calculant l'URL équivalente par simple préfixage. Sur `/api/`,
+ * rendu par `starlight-openapi` qui n'a aucun support i18n, l'alternative
+ * française pointe `/fr/api/...` — une URL qui n'existe pas. Un moteur de
+ * recherche le relève comme une erreur (« page alternative avec hreflang vers
+ * un 404 ») sur les 30 pages de la référence.
+ *
+ * On ne garde donc, sur ces pages, que les alternatives qui désignent
+ * réellement la référence anglaise. L'auto-référence `hreflang="en"` et le
+ * `x-default` survivent, ce qui est le signal correct : cette page n'existe
+ * qu'en une seule langue.
+ *
+ * Voir aussi `LanguageSelect.astro`, qui règle le même problème dans l'interface.
+ */
+const { head } = Astro.locals.starlightRoute;
+
+const isApiReference = Astro.url.pathname.startsWith('/api/');
+
+/** Une alternative qui, sur une page d'API, ne désigne pas la référence anglaise. */
+function pointsOutsideTheApiReference(tag: (typeof head)[number]): boolean {
+  if (tag.tag !== 'link' || tag.attrs?.rel !== 'alternate') return false;
+  const href = tag.attrs?.href;
+  if (typeof href !== 'string') return false;
+  try {
+    return !new URL(href, Astro.site).pathname.startsWith('/api/');
+  } catch {
+    return false;
+  }
+}
+
+const tags = isApiReference ? head.filter((tag) => !pointsOutsideTheApiReference(tag)) : head;
+---
+
+{tags.map(({ tag: Tag, attrs, content }) => <Tag {...attrs} set:html={content} />)}
