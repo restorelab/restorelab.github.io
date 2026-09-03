@@ -35,6 +35,9 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm test
       - run: npm run build
+      # Après le build : il lui faut les routes réellement bâties pour vérifier
+      # que les liens des pages françaises résolvent.
+      - run: npm run check:i18n
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

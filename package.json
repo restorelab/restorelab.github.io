@@ -11,8 +11,9 @@
     "sync:check": "node scripts/sync-docs.mjs --check",
     "gen:cli": "node scripts/gen-cli.mjs",
     "screenshots": "node scripts/screenshots.mjs",
-    "test": "node --test scripts/lib/*.test.mjs",
+    "test": "node --test --experimental-strip-types scripts/lib/*.test.mjs",
     "lint:api": "redocly lint spec/openapi.yaml",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "copy:spec": "node scripts/copy-spec.mjs",
     "prebuild": "npm run copy:spec && npm run lint:api"
   },
