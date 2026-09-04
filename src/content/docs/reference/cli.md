@@ -29,6 +29,7 @@ Available Commands:
   init        Create the configuration file and the master key
   key         Manage the master key used to seal provider secrets
   network     Manage the isolated recovery network
+  notify      Manage where RestoreLab speaks when what a workload proves changes
   plan        Manage the stored recovery plans
   provider    Manage Proxmox VE and Proxmox Backup Server connections
   recovery    Run recovery drills
@@ -232,7 +233,8 @@ Check that everything a recovery drill needs is in place
 ```text
 Inspects the configured provider and reports what is ready and what is not:
 credentials, node reachability, storages holding backups, an isolated network
-to restore onto, and whether workloads have a guest agent and recent backups.
+to restore onto, whether workloads have a guest agent and recent backups, and
+whether the notification channels are still getting through.
 
 It changes nothing.
 
@@ -241,6 +243,7 @@ Usage:
 
 Flags:
   -h, --help              help for doctor
+      --no-notify         report the channels as undispatched, for when the serving process runs with --no-notify
       --provider string   provider to inspect
       --raw               print raw API responses (implies --verbose); for reporting a discovery bug
       --workload string   also inspect one workload in detail
@@ -406,6 +409,147 @@ Flags:
       --node string                  node to create the bridge on (default: the provider's node)
       --provider string              provider whose endpoint and node to use
   -y, --yes                          do not ask for confirmation
+
+Global Flags:
+      --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
+      --master-key-file string   path to the master key file (default: ~/.restorelab/master.key; RESTORELAB_MASTER_KEY holds the key itself and wins over this)
+      --no-color                 disable coloured output
+  -v, --verbose                  verbose output
+```
+
+## restorelab notify
+
+Manage where RestoreLab speaks when what a workload proves changes
+
+```text
+Manages the channels RestoreLab posts to when a drill changes what a
+workload proves.
+
+RestoreLab speaks when something moved: a verdict changed in either direction,
+the proof level dropped, a workload stopped being evaluable, or a workload was
+drilled for the first time. It stays quiet otherwise. Twenty green messages a
+night is how a channel gets muted, and how the one red message that mattered
+goes unread.
+
+    restorelab notify add ops --kind discord --url-file hook.txt
+    restorelab notify test ops
+    restorelab notify list
+
+Usage:
+  restorelab notify [command]
+
+Aliases:
+  notify, notifications
+
+Available Commands:
+  add         Add a notification channel and seal its URL
+  list        List configured notification channels
+  remove      Remove a notification channel from the configuration
+  test        Send a sample message to a channel
+
+Flags:
+  -h, --help   help for notify
+
+Global Flags:
+      --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
+      --master-key-file string   path to the master key file (default: ~/.restorelab/master.key; RESTORELAB_MASTER_KEY holds the key itself and wins over this)
+      --no-color                 disable coloured output
+  -v, --verbose                  verbose output
+
+Use "restorelab notify [command] --help" for more information about a command.
+```
+
+## restorelab notify add
+
+Add a notification channel and seal its URL
+
+```text
+Adds a channel and seals its URL with the master key.
+
+Avoid --url on a shared machine: it lands in your shell history and in the
+process list. Prefer --url-file, '-' to read stdin, or the RESTORELAB_NOTIFY_URL
+environment variable.
+
+An id that already exists is replaced, which is how a rotated webhook is
+installed.
+
+Usage:
+  restorelab notify add <id> [flags]
+
+Flags:
+  -h, --help              help for add
+      --kind string       channel kind: discord, slack, webhook (required)
+      --url string        webhook URL (prefer --url-file or $RESTORELAB_NOTIFY_URL)
+      --url-file string   read the webhook URL from a file, or '-' for stdin
+
+Global Flags:
+      --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
+      --master-key-file string   path to the master key file (default: ~/.restorelab/master.key; RESTORELAB_MASTER_KEY holds the key itself and wins over this)
+      --no-color                 disable coloured output
+  -v, --verbose                  verbose output
+```
+
+## restorelab notify list
+
+```text
+List configured notification channels
+
+Usage:
+  restorelab notify list [flags]
+
+Aliases:
+  list, ls
+
+Flags:
+  -h, --help   help for list
+
+Global Flags:
+      --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
+      --master-key-file string   path to the master key file (default: ~/.restorelab/master.key; RESTORELAB_MASTER_KEY holds the key itself and wins over this)
+      --no-color                 disable coloured output
+  -v, --verbose                  verbose output
+```
+
+## restorelab notify remove
+
+```text
+Remove a notification channel from the configuration
+
+Usage:
+  restorelab notify remove <id> [flags]
+
+Aliases:
+  remove, rm
+
+Flags:
+  -h, --help   help for remove
+
+Global Flags:
+      --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
+      --master-key-file string   path to the master key file (default: ~/.restorelab/master.key; RESTORELAB_MASTER_KEY holds the key itself and wins over this)
+      --no-color                 disable coloured output
+  -v, --verbose                  verbose output
+```
+
+## restorelab notify test
+
+Send a sample message to a channel
+
+```text
+Sends a sample message to a channel and reports what the far end said.
+
+This is not a convenience. Nobody trusts an alerting path they have never seen
+fire, and a channel configured six months ago that silently stopped working is
+the exact failure notifications exist to prevent.
+
+The message says it is a test, so whoever reads it at three in the morning
+does not go looking for a workload that never broke.
+
+Usage:
+  restorelab notify test <id> [flags]
+
+Flags:
+  -h, --help   help for test
 
 Global Flags:
       --config string            path to config.yaml (default: $RESTORELAB_CONFIG or ~/.restorelab/config.yaml)
@@ -1064,6 +1208,11 @@ A process that runs the worker also queues the drills stored plans schedule
 for themselves. Use --no-scheduler to stop that for one night without
 touching any plan; see `restorelab schedule list` for what is coming.
 
+Any process announces the runs that changed what a workload proves, whether or
+not it runs the worker, because in a split deployment the drills happen
+elsewhere. Use --no-notify to stay quiet for one night; see
+`restorelab notify list` for the channels.
+
 Listening anywhere but loopback needs at least one API token, created with
 `restorelab token create <name>`. Put TLS in front of it with a
 reverse proxy.
@@ -1075,6 +1224,7 @@ Flags:
   -h, --help               help for serve
       --listen string      address to listen on (default "127.0.0.1:8080")
       --no-listen          execute drills without serving the API
+      --no-notify          do not send notifications for runs that change what a workload proves
       --no-scheduler       do not queue the drills stored plans schedule for themselves
       --no-worker          serve the API without executing drills (another process must run the worker)
       --worker-elsewhere   confirm that another process runs the worker against the same database (required with --no-worker)

@@ -2,7 +2,7 @@
 title: Configuration
 description: Config file, providers, network profiles and limits.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 <!-- Generated from docs/configuration.md in github.com/restorelab/restorelab. Do not edit here. -->

@@ -2,7 +2,7 @@
 title: Drill history
 description: SQLite by default, PostgreSQL optional, and what is kept.
 sidebar:
-  order: 7
+  order: 8
 ---
 
 <!-- Generated from docs/persistence.md in github.com/restorelab/restorelab. Do not edit here. -->
