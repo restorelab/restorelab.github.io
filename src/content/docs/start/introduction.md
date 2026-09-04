@@ -113,7 +113,9 @@ Everything else has been driven against a live Proxmox VE 9 cluster.
 | Writing the plan catalogue in the browser, validated by the binary as you type | done |
 | First-run setup in the browser, replacing the install commands | done |
 | Scheduled drills: a plan's cron queues its own drills, unattended | done |
-| SSH / PostgreSQL / MySQL checks, notifications | next |
+| Alerts to Discord, Slack or a webhook, on what changed rather than on every run | done |
+| Value assertions and drift: a check reads a number and is held to a bound you declared | done |
+| Ready-made PostgreSQL and MySQL check recipes, plan discovery | next |
 | Remote probes, RBAC, OIDC | planned |
 
 The package layout behind all of this, and the order the roadmap is being

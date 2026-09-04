@@ -10,4 +10,4 @@
  * `releases/latest/download/` de GitHub exige le nom de fichier exact. Le même
  * contrôle les couvre.
  */
-export const RESTORELAB_VERSION = 'v0.2.0';
+export const RESTORELAB_VERSION = 'v0.3.0';

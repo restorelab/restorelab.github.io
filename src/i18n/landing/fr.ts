@@ -228,7 +228,11 @@ bin/restorelab recovery test 101`,
         'Installation initiale dans le navigateur, en remplacement des commandes d’installation',
       scheduledDrills:
         'Exercices planifiés : le cron d’un plan met ses propres exercices en file, sans personne',
-      moreChecks: 'Contrôles SSH / PostgreSQL / MySQL, notifications',
+      notifications:
+        'Alertes vers Discord, Slack ou un webhook, sur ce qui a changé plutôt qu’à chaque exécution',
+      valueAssertions:
+        'Assertions sur valeur et dérive : un contrôle lit un nombre et est tenu à une borne que vous avez déclarée',
+      checkRecipes: 'Recettes de contrôle PostgreSQL et MySQL toutes faites, découverte de plans',
       remoteProbes: 'Sondes distantes, RBAC, OIDC',
     },
     caveats: {

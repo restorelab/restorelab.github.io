@@ -17,8 +17,8 @@ version](https://github.com/restorelab/restorelab/releases/latest) : un seul
 fichier, aucun runtime, avec `SHA256SUMS` à côté :
 
 ```bash
-curl -fsSL -O https://github.com/restorelab/restorelab/releases/latest/download/restorelab_v0.2.0_linux_amd64.tar.gz
-tar xzf restorelab_v0.2.0_linux_amd64.tar.gz
+curl -fsSL -O https://github.com/restorelab/restorelab/releases/latest/download/restorelab_v0.3.0_linux_amd64.tar.gz
+tar xzf restorelab_v0.3.0_linux_amd64.tar.gz
 ./restorelab serve
 ```
 

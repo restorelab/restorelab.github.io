@@ -120,7 +120,9 @@ Tout le reste a été piloté contre un cluster Proxmox VE 9 en service.
 | Rédaction du catalogue de plans dans le navigateur, validé par le binaire à la frappe | livré |
 | Installation initiale dans le navigateur, en remplacement des commandes d’installation | livré |
 | Exercices planifiés : le cron d’un plan met ses propres exercices en file, sans personne | livré |
-| Contrôles SSH / PostgreSQL / MySQL, notifications | en cours |
+| Alertes vers Discord, Slack ou un webhook, sur ce qui a changé plutôt qu’à chaque exécution | livré |
+| Assertions sur valeur et dérive : un contrôle lit un nombre et est tenu à une borne que vous avez déclarée | livré |
+| Recettes de contrôle PostgreSQL et MySQL toutes faites, découverte de plans | en cours |
 | Sondes distantes, RBAC, OIDC | prévu |
 
 L’organisation des paquets derrière tout cela, et l’ordre dans lequel la feuille
