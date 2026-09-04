@@ -75,6 +75,11 @@ tags:
     description: The configured providers and the self-diagnostic.
   - name: Cleanup
     description: Removing a temporary workload a drill left behind.
+  - name: Notifications
+    description: >-
+      Where RestoreLab speaks when what a workload proves changes. The webhook
+      URL is write-only across this surface: it goes in, and no response ever
+      brings it back.
   - name: Setup
     description: >-
       First-run provisioning. These two routes exist only on a RestoreLab that
@@ -1343,6 +1348,235 @@ paths:
         '503':
           $ref: '#/components/responses/HistoryUnavailable'
 
+  /notifications:
+    get:
+      operationId: listNotificationChannels
+      summary: List the configured notification channels
+      description: >-
+        Every channel, with its health read off its most recent delivery.
+
+
+        **No response on this surface ever contains a webhook URL** — not
+        truncated, not with its path starred out. A Discord webhook URL is a
+        bearer credential, and the only safe redaction of one is its absence.
+        The host comes back so that two channels can be told apart.
+      tags:
+        - Notifications
+      responses:
+        '200':
+          description: The configured channels.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: The channels this deployment will speak through.
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    description: One entry per configured channel.
+                    items:
+                      $ref: '#/components/schemas/NotificationChannel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/NotificationsUnavailable'
+    post:
+      operationId: createNotificationChannel
+      summary: Add a notification channel
+      description: >-
+        Creating means creating: a `POST` onto an id that already exists is a
+        `409`, never a replacement. Pointing somebody else's alerts at a
+        webhook they never chose, silently, is the failure this refuses.
+
+
+        `url` is required here — a channel with no destination would never send
+        anything. `enabled` defaults to true when absent.
+      tags:
+        - Notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationChannelInput'
+      responses:
+        '201':
+          description: >-
+            The channel as it now stands, read back from storage rather than
+            echoed: the host is derived from the URL on the far side of the
+            interface.
+          headers:
+            Location:
+              description: Where the new channel lives.
+              schema:
+                type: string
+              example: /api/v1/notifications/ops
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationChannel'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenManage'
+        '409':
+          description: >-
+            A channel already uses that id (`id-taken`). Edit it, or choose
+            another.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/NotificationsUnavailable'
+
+  /notifications/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ChannelId'
+    put:
+      operationId: updateNotificationChannel
+      summary: Change a notification channel
+      description: >-
+        **Every field is optional, and an absent one keeps what is stored.**
+        That is a `PATCH`'s semantics under a `PUT`, and it is deliberate: the
+        resource this URL names has a field the API refuses to hand back, so a
+        client can never send the whole thing, and a strict `PUT` would make
+        editing a name or a toggle impossible without retyping the credential.
+
+
+        In particular, **omitting `url` keeps the stored one** rather than
+        clearing it. There is no legitimate empty webhook URL, so nothing is
+        lost by refusing to distinguish an absent field from an empty one.
+      tags:
+        - Notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationChannelInput'
+      responses:
+        '200':
+          description: The channel as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationChannel'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenManage'
+        '404':
+          $ref: '#/components/responses/ChannelNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/NotificationsUnavailable'
+    delete:
+      operationId: deleteNotificationChannel
+      summary: Remove a notification channel
+      description: >-
+        No condition, and none needed: deliveries already written keep their
+        channel id, so removing a channel stops future messages without
+        rewriting what was said about past runs.
+      tags:
+        - Notifications
+      responses:
+        '204':
+          description: The channel is gone.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenManage'
+        '404':
+          $ref: '#/components/responses/ChannelNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/NotificationsUnavailable'
+
+  /notifications/{id}/test:
+    parameters:
+      - $ref: '#/components/parameters/ChannelId'
+    post:
+      operationId: testNotificationChannel
+      summary: Send one deliberate message through a channel
+      description: >-
+        Not a convenience. Nobody trusts an alerting path they have never seen
+        fire, and a channel configured six months ago that quietly stopped
+        working is the exact failure this slice exists to prevent.
+
+
+        **Nothing is recorded.** A test message is not about a run, and the
+        delivery table is keyed by run and channel. The message is shaped by
+        the same function that words a real one, so what arrives looks exactly
+        like what will arrive at three in the morning — with a workload name
+        that says it was a test, because it lands in the same channel.
+
+
+        This one takes `operate`, not `manage`: sending a message is operating
+        the product, not deciding what it is.
+      tags:
+        - Notifications
+      responses:
+        '200':
+          description: The far end accepted the message.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTest'
+        '400':
+          description: >-
+            The stored channel names a kind this product cannot render
+            (`invalid-channel-kind`). Only reachable by hand-editing the
+            configuration file; fixed with a `PUT`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: >-
+            The token does not hold the `operate` scope
+            (`insufficient-scope`), or a cookie-authenticated request came from
+            another origin (`cross-origin`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          $ref: '#/components/responses/ChannelNotFound'
+        '500':
+          description: >-
+            The channel exists and cannot be used (`channel-unusable`): its URL
+            was sealed with a different master key. Re-add the channel.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '502':
+          description: >-
+            The destination refused the message (`channel-refused`). A `502`
+            and never a `500`: the request was fine, RestoreLab was fine, and
+            the far end said no. The detail never contains the webhook URL.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/NotificationsUnavailable'
+
   /providers:
     get:
       operationId: listProviders
@@ -1662,6 +1896,15 @@ components:
         default: 50
       example: 100
 
+    ChannelId:
+      name: id
+      in: path
+      required: true
+      description: The channel's id, the name it carries everywhere else.
+      schema:
+        type: string
+      example: ops
+
   responses:
     InvalidParameter:
       description: A query parameter could not be read (`invalid-parameter`).
@@ -1775,6 +2018,24 @@ components:
             $ref: '#/components/schemas/Problem'
     InternalError:
       description: An unrecognised failure inside RestoreLab (`internal`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    NotificationsUnavailable:
+      description: >-
+        This deployment has no configuration file to write channels back to
+        (`notifications-unavailable`). A `503` rather than an empty list: "no
+        channel is configured" and "this server cannot tell you" are different
+        statements, and only one of them is true here.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    ChannelNotFound:
+      description: No channel carries that id (`not-found`).
       content:
         application/problem+json:
           schema:
@@ -3186,3 +3447,131 @@ components:
           type: string
           description: The drill a queued slot created. Absent on a skipped slot.
           examples: ['9d2c1b70-0000-4000-8000-00000000000b']
+
+    NotificationChannel:
+      type: object
+      description: >-
+        A configured channel, and its health. What it leaves out is the point:
+        **the webhook URL never comes back**, not truncated, not starred out.
+        The host is here so an operator can tell two channels apart.
+
+
+        The four `last_*` fields are read off the channel's most recent
+        delivery, and travel with the row rather than behind a second request:
+        "is this channel still working" is the reason somebody opens the screen
+        at all, and a row showing only what was configured would let a revoked
+        webhook look exactly like a quiet one.
+      required:
+        - id
+        - kind
+        - host
+        - enabled
+      properties:
+        id:
+          type: string
+          description: The channel's name, used everywhere else.
+          examples: [ops]
+        kind:
+          type: string
+          enum: [discord, slack, webhook]
+          description: Which renderer shapes the message.
+          examples: [discord]
+        host:
+          type: string
+          description: >-
+            The destination's host, the only part of the URL that ever comes
+            back.
+          examples: ['discord.com']
+        enabled:
+          type: boolean
+          description: Whether this channel is spoken through.
+          examples: [true]
+        last_state:
+          type: string
+          description: >-
+            The state of the most recent delivery. It travels beside
+            `last_error` on purpose: a pending delivery that will be retried in
+            thirty seconds carries an error too, and rendering it as a dead
+            channel would overstate the problem.
+          examples: [sent]
+        last_sent:
+          type: string
+          format: date-time
+          description: When the most recent delivery was attempted.
+          examples: ['2026-09-04T03:00:12Z']
+        last_status:
+          type: integer
+          description: >-
+            The far end's own HTTP status. Discord answers `204` and Slack
+            answers `200`.
+          examples: [204]
+        last_error:
+          type: string
+          description: >-
+            Why the most recent delivery did not land. Never contains the
+            webhook URL.
+          examples: ['the channel answered Too Many Requests']
+
+    NotificationChannelInput:
+      type: object
+      description: >-
+        The body of `POST` and `PUT`. On a `POST`, `id`, `kind` and `url` are
+        required and `enabled` defaults to true. On a `PUT`, **every field is
+        optional and an absent one keeps what is stored** — including `url`,
+        which is kept rather than cleared.
+      properties:
+        id:
+          type: string
+          description: >-
+            The channel's name. Required on `POST`; no slash and no space, it
+            is a path segment. Ignored on `PUT`, where the path names the
+            channel.
+          examples: [ops]
+        kind:
+          type: string
+          enum: [discord, slack, webhook]
+          description: Required on `POST`. Absent on a `PUT` keeps the stored kind.
+          examples: [discord]
+        url:
+          type: string
+          format: uri
+          description: >-
+            The webhook URL. **Write-only**: this is the only place it appears
+            in the whole contract, and no response ever returns it. Required on
+            `POST`. **Absent on a `PUT` keeps the stored one**, it does not
+            clear it.
+          examples: ['https://discord.com/api/webhooks/000000/xxxxxxxx']
+        enabled:
+          type: boolean
+          description: >-
+            Absent on a `POST` means the channel is on. Absent on a `PUT`
+            leaves it as it is — an absent field must never read as "off".
+          examples: [true]
+
+    NotificationTest:
+      type: object
+      description: What one deliberate message produced.
+      required:
+        - id
+        - kind
+        - status
+        - sent_at
+      properties:
+        id:
+          type: string
+          examples: [ops]
+        kind:
+          type: string
+          enum: [discord, slack, webhook]
+          examples: [discord]
+        status:
+          type: integer
+          description: >-
+            The far end's own answer, not this server's: Discord answers `204`
+            and Slack `200`, and somebody who has never seen this path fire
+            needs to know which of them replied.
+          examples: [204]
+        sent_at:
+          type: string
+          format: date-time
+          examples: ['2026-09-04T09:12:00Z']
